@@ -28,13 +28,13 @@ src/
     timing/             timed.ts (timed scroll), pace.ts (elapsed/target pace math)
   engines/              webspeech.ts, simulated.ts, offline/ (M4). Implement RecognizerEngine.
   storage/              scripts.ts (ScriptStore, IndexedDB), settings.ts (SettingsStore, localStorage)
-  ui/                   DOM code: views/ (library, editor, prompter, settings; deps.ts = ViewDeps), components/ (dom, nav, notice, fields = labelled controls, quickpanel = in-run display panel), files.ts, autosave.ts, scroll.ts (ease/deadband math + rAF ScrollController), wordstate.ts (position → spoken/current word cursor)
+  ui/                   DOM code: views/ (library, editor, prompter, settings; deps.ts = ViewDeps), components/ (dom, nav, notice, fields = labelled controls, quickpanel = in-run display panel), files.ts, autosave.ts, scroll.ts (ease/deadband math + rAF ScrollController), wordstate.ts (position → spoken/current word cursor), update.ts (SW update banner)
   app.ts                Composition root: builds stores, engines, controller, views; wires them.
-  main.ts               Entry: imports CSS, calls app.
+  main.ts               Entry: imports CSS, calls app, registers the service worker (vite-plugin-pwa).
 test/
   fixtures/             sample scripts, transcripts
   harness/              synthetic ASR-noise harness (chunk 11)
-public/                 static assets (icons, sample scripts if served)
+public/                 static assets (icon SVGs + committed PNGs from scripts/gen-icons.sh)
 ```
 
 Rules:

@@ -2,8 +2,9 @@ import { openScriptStore, type ScriptStore } from './storage/scripts';
 import { SettingsStore, memoryStorage, type StorageAdapter } from './storage/settings';
 import { applyAppearance } from './ui/appearance';
 import { h } from './ui/components/dom';
-import { createNotices } from './ui/components/notice';
-import { Router } from './ui/router';
+import { createNotices, type Notices } from './ui/components/notice';
+import { Router, parseRoute } from './ui/router';
+import { createUpdateBanner, type UpdateBanner } from './ui/update';
 import type { ViewDeps } from './ui/views/deps';
 import { createEditorView } from './ui/views/editor';
 import { createLibraryView } from './ui/views/library';
@@ -14,6 +15,9 @@ export interface App {
   settings: SettingsStore;
   scripts: ScriptStore;
   router: Router;
+  notices: Notices;
+  /** Service-worker update banner; main.ts feeds it from the SW registration. */
+  updates: UpdateBanner;
 }
 
 /** localStorage when available; in-memory fallback (e.g. storage disabled). */
@@ -36,8 +40,14 @@ function browserIndexedDb(): IDBFactory | undefined {
   }
 }
 
-/** Composition root: builds stores and the router, applies settings, mounts views. */
-export async function createApp(container: HTMLElement): Promise<App> {
+/**
+ * Composition root: builds stores and the router, applies settings, mounts views.
+ * `applyUpdate` activates a waiting service worker and reloads; it runs only on user tap.
+ */
+export async function createApp(
+  container: HTMLElement,
+  applyUpdate: () => void = () => location.reload(),
+): Promise<App> {
   const settings = new SettingsStore(browserStorage());
   const root = document.documentElement;
   applyAppearance(root, settings.get().appearance);
@@ -47,7 +57,9 @@ export async function createApp(container: HTMLElement): Promise<App> {
 
   const notices = createNotices();
   const viewHost = h('div', { className: 'view-host' });
-  container.replaceChildren(notices.el, viewHost);
+  const updates = createUpdateBanner(() => parseRoute(location.hash).name, applyUpdate);
+  window.addEventListener('hashchange', () => updates.refresh());
+  container.replaceChildren(updates.el, notices.el, viewHost);
 
   const scripts = await openScriptStore(browserIndexedDb());
   if (!scripts.persistent) {
@@ -73,5 +85,5 @@ export async function createApp(container: HTMLElement): Promise<App> {
   });
   router.start();
 
-  return { settings, scripts, router };
+  return { settings, scripts, router, notices, updates };
 }

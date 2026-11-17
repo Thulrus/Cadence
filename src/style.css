@@ -731,3 +731,9 @@ input[type='range']:focus-visible {
 .prompter-bar .btn[aria-expanded='true'] {
   outline: 2px solid var(--accent);
 }
+
+/* ---- Update banner (chunk 06) ---- */
+.update-actions {
+  display: flex;
+  gap: 0.5rem;
+}

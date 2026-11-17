@@ -42,7 +42,7 @@ describe('buildScriptIndex', () => {
     expect(norms).not.toContain('smile');
     expect(norms).not.toContain('camera');
     expect(norms.slice(0, 6)).toEqual(['brothers', 'and', 'sisters', 'i', 'am', 'grateful']);
-    expect(index.tokens.every((t) => t.weight === 1)).toBe(true);
+    expect(index.tokens.every((t) => t.weight > 0 && t.weight <= 1)).toBe(true);
     expectExactMapping(index);
   });
 
@@ -86,5 +86,35 @@ describe('buildScriptIndex', () => {
     expect(index.script.words.length).toBeGreaterThanOrEqual(1500);
     expect(elapsed).toBeLessThan(50);
     expectExactMapping(index);
+  });
+});
+
+describe('buildScriptIndex with numbers and scripture', () => {
+  it('maps expanded tokens back to their display words', () => {
+    const index = build('Read 1 Nephi 3:7 in 2026, with $20 and 1,000 friends.');
+    const pairs = index.tokens.map((t) => `${t.norm}@${index.script.words[t.word]!.text}`);
+    expect(pairs).toEqual([
+      'read@Read',
+      'first@1',
+      'nephi@Nephi',
+      'three@3:7',
+      'seven@3:7',
+      'in@in',
+      'twenty@2026,',
+      'twenty@2026,',
+      'six@2026,',
+      'with@with',
+      'twenty@$20',
+      'dollars@$20',
+      'and@and',
+      'one@1,000',
+      'thousand@1,000',
+      'friends@friends.',
+    ]);
+    for (const w of index.script.words) {
+      for (let t = w.tokenStart; t < w.tokenEnd; t++) {
+        expect(index.script.words[index.tokens[t]!.word]).toBe(w);
+      }
+    }
   });
 });

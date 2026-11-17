@@ -36,7 +36,7 @@ export interface MatchToken {
   norm: string;
   /** Index of the DisplayWord that produced it (many tokens → one word). */
   word: number;
-  /** IDF-style anchor weight (chunk 08; 1 until then). */
+  /** IDF-style anchor weight in ~[0.1, 1] (align/weights.ts). */
   weight: number;
   /** Phonetic key (chunk 08). */
   phonetic?: string;

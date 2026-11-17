@@ -8,9 +8,14 @@
  *  3. split on hyphens / en / em dashes.
  *  4. contractions (CONTRACTIONS table + suffix rules), then strip remaining punctuation.
  *
+ * Rules live in scripture.ts and numbers.ts.
+ *
  * Every output token carries `src`, the index of the raw word that produced it, so the
  * script index can map tokens back to display words exactly.
  */
+
+import { numberRule } from './numbers';
+import { scriptureRule } from './scripture';
 
 /** A piece of text attributed to a raw input word. */
 export interface Segment {
@@ -26,8 +31,8 @@ export interface Segment {
  */
 export type SequenceRule = (segments: Segment[]) => Segment[];
 
-/** Hook: chunk 07 inserts number and scripture expansion here. Order matters. */
-export const SEQUENCE_RULES: SequenceRule[] = [];
+/** Sequence rules, in order: scripture references first (they own `3:16`), then numbers. */
+export const SEQUENCE_RULES: SequenceRule[] = [scriptureRule, numberRule];
 
 /**
  * Whole-word contractions that the suffix rules would get wrong. Keys are lowercase

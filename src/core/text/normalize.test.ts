@@ -74,7 +74,7 @@ describe('normalizeText / normalizeWords', () => {
     ]);
   });
 
-  it('keeps digits for chunk 07 to expand', () => {
-    expect(normalizeText('John 3:16')).toEqual(['john', '316']);
+  it('runs the scripture and number rules', () => {
+    expect(normalizeText('John 3:16')).toEqual(['john', 'three', 'sixteen']);
   });
 });

@@ -1,7 +1,9 @@
+import { phoneticKeys } from '../align/phonetic';
+import { computeWeights } from '../align/weights';
 import { normalizeWords } from './normalize';
 import type { DisplayWord, MatchToken, ParsedScript, ScriptIndex } from './types';
 
-/** Placeholder anchor weight until chunk 08 computes IDF weights. */
+/** Initial weight while tokens are collected; replaced by `weighTokens`. */
 export const DEFAULT_TOKEN_WEIGHT = 1;
 
 /**
@@ -9,6 +11,7 @@ export const DEFAULT_TOKEN_WEIGHT = 1;
  * Consecutive speech words in a block are normalized together (so multi-word rules like
  * scripture references can see the run). Words that produce no tokens, and all non-speech
  * words, get an empty range at the position of the next token.
+ * Fills each token's anchor `weight` and `phonetic` key (see weighTokens).
  * Mutates and returns `parsed.words` ranges inside the returned index.
  */
 export function buildScriptIndex(parsed: ParsedScript): ScriptIndex {
@@ -27,7 +30,17 @@ export function buildScriptIndex(parsed: ParsedScript): ScriptIndex {
     indexRun(words, i, end, tokens);
     i = end;
   }
+  weighTokens(tokens);
   return { script: parsed, tokens };
+}
+
+/** Fill IDF-style `weight` (align/weights.ts) and primary Double Metaphone `phonetic`. */
+export function weighTokens(tokens: MatchToken[]): void {
+  const weights = computeWeights(tokens.map((t) => t.norm));
+  tokens.forEach((t, i) => {
+    t.weight = weights[i]!;
+    t.phonetic = phoneticKeys(t.norm)[0];
+  });
 }
 
 function isSameRun(w: DisplayWord, first: DisplayWord): boolean {

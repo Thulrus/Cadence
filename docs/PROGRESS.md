@@ -142,3 +142,9 @@ Entry template:
 - Owner on Android Chrome (phone): privacy notice, mic prompt, badge "Listening", but no tracking and no level meter. Prime suspect: the meter's second `getUserMedia` stream starving Web Speech on Android (the brief's warning). Not yet confirmed.
 - Added `?debug` (`ui/debuglog.ts`): on-screen log of recognizer lifecycle (`launch/start/audiostart/soundstart/speechstart/…/end`), errors, raw results (`@resultIndex/length`, `i`/`F` per result), status changes, meter failure reason. `WebSpeechDeps.debug` hook.
 - **Confirmed by owner:** with the meter off, voice following works well on the Android phone. So `engine.micMeter` is now `'auto' | 'on' | 'off'` (default `auto` = off on Android, on elsewhere; `meterEnabled()` in `capabilities.ts`). Stored booleans migrate: `true` → `auto`, `false` → `off`. Android tablets will have no meter unless set to On.
+
+## Owner check — M2 voice following on Android (2026-11-17)
+
+- Owner tested on an Android **phone** (Chrome, built-in mic at arm's length, meter off): tracking very accurate, no problems reported. The church-tablet run of the 1,500-word sample is still worth doing when convenient.
+- Lag: the highlight typically trails the speaker by 3–8 words, mostly recognizer latency (Google round trip plus Android's bursty interim results). **Owner decision: acceptable for now; don't build lag compensation unless asked.** Idea on file if it comes back: a display-only predictive lead (pace × expected latency, capped ~5–6 words, only while results are arriving, never backward), with its values as tuning constants (fits chunk 15's tuning panel). Line highlight mode makes the lag less noticeable.
+- Next agent: start chunk 14. Testing tips: real Web Speech works in `npm run dev` on desktop Chrome with a mic; use `?sim` for the simulator, `?debug` for the on-screen recognizer log on devices.

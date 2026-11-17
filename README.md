@@ -1,12 +1,16 @@
 # Cadence
 
-A voice-following teleprompter that runs in the browser. It listens through the microphone, works out where you are in your script, and scrolls to keep up with you, so pauses, ad-libs, and skipped lines don't throw it off. Static PWA, no backend, hosted on GitHub Pages.
+A voice-following teleprompter that runs in the browser. It listens through the microphone, works out where you are in your script, and scrolls to keep up with you, so pauses, ad-libs, and skipped lines don't throw it off.
+
+**▶ Open Cadence: <https://thulrus.github.io/Cadence/>**
+
+Free and runs entirely in your browser: no account, no sign-up, no purchase, nothing to download. Just open the link. You can optionally install it as an app, and it then works offline.
 
 > Status: in development. Voice following arrives in milestone M2; today the prompter follows taps and manual scrolling. See `SPEC.md` for the product spec and `docs/PLAN.md` for the build plan.
 
 ## Install
 
-Open the site in Chrome (Android tablet or desktop) and choose **Install app** (Android: menu → _Install app_ / _Add to Home screen_). After the first visit Cadence loads with no network at all. When a new version is published, a small **Update available** banner appears outside the prompter; nothing reloads until you tap **Reload**.
+Installing is optional. Open <https://thulrus.github.io/Cadence/> in Chrome (Android tablet or desktop) and choose **Install app** (Android: menu → _Install app_ / _Add to Home screen_). After the first visit Cadence loads with no network at all. When a new version is published, a small **Update available** banner appears outside the prompter; nothing reloads until you tap **Reload**.
 
 ## Privacy
 

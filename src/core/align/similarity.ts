@@ -19,8 +19,11 @@ export const SIMILARITY_CONFIG = {
   levFloor: 0.5,
   /** Skip Levenshtein when the shorter token is under this fraction of the longer one. */
   minLengthRatio: 0.5,
-  /** Phonetic matches need tokens at least this long and keys at least this long. */
-  phoneticMinToken: 3,
+  /**
+   * Phonetic matches need tokens at least this long and keys at least this long. Short words
+   * collide badly (Double Metaphone drops a leading W: "and" = "want" = ANT).
+   */
+  phoneticMinToken: 4,
   phoneticMinKey: 2,
   cacheLimit: 50_000,
 } as const;

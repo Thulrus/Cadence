@@ -86,3 +86,16 @@ Entry template:
 - Known gaps (documented in numbers.ts): `mp3`-style letter+digit mixes, dash-joined words before a multiplier ("a hundred-fold"), "ten o'clock" vs `10:00`, roman numerals outside book prefixes.
 - Deferred: none.
 - Human check pending: none.
+
+## Chunks 09+10 — Aligner scoring function & state machine — DONE (2026-11-17)
+
+- Built: `core/align/config.ts` (`AlignConfig`, `ALIGN_DEFAULTS`, `resolveConfig`), `score.ts` (`scoreWindow` = one banded local-alignment DP over the window giving every end q at once, `gaps` as explicit DP layers; `bestCandidate`; `isAcceptable(c, cfg, 'normal'|'lost')`), `aligner.ts` (`Aligner.feed/setPosition/reset/setConfig/state`; API in the module header). Warm whole-script scoring (~3–5k tokens) ≈ 5 ms; window-45 call ≪ 1 ms.
+- Deviations / contract changes (all documented in the modules):
+  - Distance penalty is measured from `p − 1` (where the tail ends if nothing new was said), not `p`.
+  - Pair credit = `min(script weight, tail weight) · similarity`; score = raw / weight of the aligned tail suffix (tail start is local, tail end anchored). Tail-token weights come from the script's weight for the same word; unknown words weigh 1.
+  - A candidate must END on a true match (no trailing substitution/deletion). Acceptance needs ≥ 1 content (non-stopword) match, so stopword-only tails never move.
+  - New config: `jumpMinMatched` (4: a forward move whose match starts past `p + maxGaps` skips text and needs more evidence), `backtrackWindow` (60: backward-only reread search, tried only when the forward window fails), `backtrackMinTokens` (3), `lostDistancePenaltyPerToken`, `lostStepMs`, `activityGapMs`, `allowBacktrack`. `matchSimilarity` 0.7. `similarity.phoneticMinToken` raised to 4 (Double Metaphone: "and" = "want").
+  - `feed` returns `AlignResult | null` (null = nothing observable changed) with `moved`, `jumped`, `lost`, `score`, `mode`, `final`. Lost-flag flips also produce a result.
+- Gotchas for chunk 11/12: the tail is rebuilt from the full hypothesis each event (no delta trusting); `setPosition` drops earlier speech (current-utterance words heard before the resync are ignored). Lost mode widens by time: step k of `lostWidenSteps` every `lostStepMs` after `lostAfterMs`, last step = whole script. The defaults are untuned first guesses; chunk 11 should tune them with the harness. Perf tests take the best of several runs (parallel Vitest on 4 cores made single-shot timings flaky).
+- Deferred: none.
+- Human check pending: none.

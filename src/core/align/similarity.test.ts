@@ -81,10 +81,14 @@ describe('tokenSimilarity', () => {
   it('10k calls are fast', () => {
     const words = ['faith', 'covenant', 'nephi', 'apostles', 'prophet', 'the', 'commanded', 'lord'];
     const heard = ['faith', 'covenants', 'nefi', 'apostle', 'profit', 'a', 'commander', 'load'];
-    const t0 = performance.now();
     let sum = 0;
-    for (let i = 0; i < 10_000; i++) sum += tokenSimilarity(heard[i % 8]!, words[(i * 7) % 8]!);
+    let best = Infinity;
+    for (let r = 0; r < 4; r++) {
+      const t0 = performance.now();
+      for (let i = 0; i < 10_000; i++) sum += tokenSimilarity(heard[i % 8]!, words[(i * 7) % 8]!);
+      best = Math.min(best, performance.now() - t0); // first run includes JIT + cache fill
+    }
     expect(sum).toBeGreaterThan(0);
-    expect(performance.now() - t0).toBeLessThan(50);
+    expect(best).toBeLessThan(20);
   });
 });

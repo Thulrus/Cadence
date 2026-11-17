@@ -343,3 +343,168 @@ textarea:focus-visible {
 .cheat-sheet dd {
   margin: 0;
 }
+
+[hidden] {
+  display: none !important;
+}
+
+/* ---- Prompter (chunk 04) ---- */
+.view-prompter {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+.prompter-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0.5rem;
+  background: var(--chrome-bg);
+  border-bottom: 1px solid var(--chrome-border);
+}
+
+.prompter-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--chrome-fg);
+  text-align: center;
+}
+
+/* Mirror/flip applies to the whole stage so the reading line flips with the text. */
+.prompter-stage {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+  transform: scale(var(--prompt-scale-x), var(--prompt-scale-y));
+}
+
+.prompter-scroll {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  touch-action: pan-y;
+  scrollbar-width: none;
+  overscroll-behavior: contain;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  cursor: grab;
+}
+
+.prompter-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+/* Padding-block (reading-line / bottom spacers) is set in px by the view. */
+.prompter-text {
+  position: relative;
+  font-family: var(--prompt-font-family);
+  font-size: var(--prompt-font-size);
+  line-height: var(--prompt-line-height);
+  max-width: calc(var(--prompt-column) + 2 * var(--prompt-margin));
+  margin-inline: auto;
+  padding-inline: var(--prompt-margin);
+  overflow-wrap: break-word;
+}
+
+.prompter-text .p-para {
+  margin: 0 0 0.8em;
+}
+
+.prompter-text .p-heading {
+  color: var(--heading);
+  font-size: 0.8em;
+  margin: 0.6em 0 0.4em;
+}
+
+.prompter-text span {
+  border-radius: 0.15em;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+
+.prompter-text .w-dir {
+  color: var(--direction);
+  font-size: 0.75em;
+  font-style: italic;
+}
+
+.prompter-text .w-em {
+  font-style: italic;
+  font-weight: 700;
+}
+
+.prompter-text .w-spoken {
+  opacity: var(--prompt-spoken-opacity);
+}
+
+:root[data-highlight='word'] .prompter-text .w-current,
+:root[data-highlight='line'] .prompter-text .l-current {
+  background: var(--highlight-bg);
+  color: var(--highlight-fg);
+  opacity: 1;
+}
+
+/* Bridge the gaps between words so a highlighted line reads as one bar. */
+:root[data-highlight='line'] .prompter-text .l-current {
+  border-radius: 0;
+  box-shadow:
+    0.15em 0 0 var(--highlight-bg),
+    -0.15em 0 0 var(--highlight-bg);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .prompter-text span {
+    transition: opacity 0.2s;
+  }
+}
+
+.reading-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: var(--prompt-reading-line);
+  height: 0;
+  border-top: 2px solid color-mix(in srgb, var(--accent) 25%, transparent);
+  pointer-events: none;
+}
+
+.reading-line::before,
+.reading-line::after {
+  content: '';
+  position: absolute;
+  top: -0.6rem;
+  border: 0.55rem solid transparent;
+  opacity: 0.7;
+}
+
+.reading-line::before {
+  left: 0;
+  border-left-color: var(--accent);
+}
+
+.reading-line::after {
+  right: 0;
+  border-right-color: var(--accent);
+}
+
+.resume-follow {
+  position: absolute;
+  left: 50%;
+  bottom: calc(1.5rem + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  font-size: 1.4em;
+  min-height: 64px;
+  padding-inline: 2rem;
+  border-radius: 999px;
+  box-shadow: 0 0.25rem 1rem rgb(0 0 0 / 0.5);
+  z-index: 2;
+}

@@ -68,7 +68,7 @@ export async function createApp(container: HTMLElement): Promise<App> {
   const router: Router = new Router(viewHost, {
     library: () => createLibraryView(deps),
     editor: () => createEditorView(deps),
-    prompter: createPrompterView,
+    prompter: () => createPrompterView(deps),
     settings: createSettingsView,
   });
   router.start();

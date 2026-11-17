@@ -28,7 +28,7 @@ src/
     timing/             timed.ts (timed scroll), pace.ts (elapsed/target pace math)
   engines/              webspeech.ts, simulated.ts, offline/ (M4). Implement RecognizerEngine.
   storage/              scripts.ts (ScriptStore, IndexedDB), settings.ts (SettingsStore, localStorage)
-  ui/                   DOM code: views/ (library, editor, prompter, settings; deps.ts = ViewDeps), components/ (dom, nav, notice), files.ts, autosave.ts, scroll.ts
+  ui/                   DOM code: views/ (library, editor, prompter, settings; deps.ts = ViewDeps), components/ (dom, nav, notice), files.ts, autosave.ts, scroll.ts (ease/deadband math + rAF ScrollController), wordstate.ts (position → spoken/current word cursor)
   app.ts                Composition root: builds stores, engines, controller, views; wires them.
   main.ts               Entry: imports CSS, calls app.
 test/

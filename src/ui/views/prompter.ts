@@ -10,6 +10,7 @@ import { SimulatedEngine } from '../../engines/simulated';
 import type { AppearanceSettings } from '../../storage/settings';
 import { button, h } from '../components/dom';
 import { createQuickPanel } from '../components/quickpanel';
+import { createDebugPanel, debugEnabled } from '../debuglog';
 import { createSimPanel, DEVSIM_CONFIG, simEnabled } from '../devsim';
 import { browserEnv, detectCapabilities, resolveEngine } from '../capabilities';
 import { jumpMessage, linesBetween, statusBadge, TimingStats, VoiceFollowSession } from '../follow';
@@ -369,6 +370,14 @@ export function createPrompterView(deps: ViewDeps): View {
         forceSim,
       });
       const devTools = import.meta.env.DEV || forceSim;
+      const debugLog = debugEnabled(location.search) ? createDebugPanel() : null;
+      if (debugLog) {
+        root.append(debugLog.el);
+        cleanups.push(() => debugLog.el.remove());
+        debugLog.log(
+          `engine ${resolved.engine}; webSpeech ${caps.webSpeech}, secure ${caps.secure}, getUserMedia ${caps.getUserMedia}, meter setting ${engineSettings.micMeter}`,
+        );
+      }
       if (resolved.note) deps.notices.show(resolved.note, 'info', PROMPTER_CONFIG.noteMs);
 
       function startFollow(engine: RecognizerEngine): VoiceFollowSession {
@@ -407,6 +416,7 @@ export function createPrompterView(deps: ViewDeps): View {
           const meter = meterOn
             ? new MicMeter({
                 onFail: (err) => {
+                  debugLog?.log(`meter failed: ${String(err)}`);
                   meterOn = false;
                   meterEl.hidden = true;
                   console.info('[cadence] mic level meter unavailable:', err);
@@ -417,6 +427,7 @@ export function createPrompterView(deps: ViewDeps): View {
             Recognition,
             lang: () => deps.settings.get().engine.lang,
             meter,
+            debug: debugLog?.log,
           });
         }
       } else if (resolved.engine === 'simulated') {
@@ -508,6 +519,7 @@ export function createPrompterView(deps: ViewDeps): View {
       if (engine) {
         session = startFollow(engine);
         session.events.on('status', (st) => {
+          debugLog?.log(`status ${st.status}${st.message ? `: ${st.message}` : ''}`);
           engineStatus = st;
           renderStatus();
           if (st.status === 'no-permission') {

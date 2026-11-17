@@ -28,6 +28,7 @@ class FakeRecognition implements SpeechRecognitionLike {
   onend: SpeechRecognitionLike['onend'] = null;
   onresult: SpeechRecognitionLike['onresult'] = null;
   onerror: SpeechRecognitionLike['onerror'] = null;
+  onsoundstart: SpeechRecognitionLike['onsoundstart'] = null;
   started = false;
   aborted = false;
   constructor() {
@@ -271,5 +272,34 @@ describe('WebSpeechEngine', () => {
     t.engine.stop();
     expect(calls).toEqual(['start', 'stop']);
     expect(levels).toEqual([0.5, 0]);
+  });
+});
+
+describe('WebSpeechEngine debug log', () => {
+  it('logs lifecycle, progress events, results and errors', async () => {
+    FakeRecognition.instances = [];
+    const lines: string[] = [];
+    const engine = new WebSpeechEngine({
+      Recognition: FakeRecognition,
+      lang: () => 'en-US',
+      debug: (m) => lines.push(m),
+      setTimer: () => 0,
+      clearTimer: () => undefined,
+    });
+    await engine.start();
+    const r = FakeRecognition.instances[0]!;
+    r.fireStart();
+    r.onsoundstart?.({});
+    r.result(0, ['hi', false]);
+    r.error('no-speech');
+    r.end();
+    expect(lines).toEqual([
+      'launch (lang en-US)',
+      'start',
+      'soundstart',
+      'result @0/1: i"hi"',
+      'error: no-speech',
+      'end',
+    ]);
   });
 });

@@ -68,6 +68,12 @@ export interface SpeechRecognitionLike {
   onend: ((ev: unknown) => void) | null;
   onresult: ((ev: SpeechResultEventLike) => void) | null;
   onerror: ((ev: SpeechErrorEventLike) => void) | null;
+  /** Progress events, used only for the `debug` log. */
+  onaudiostart?: ((ev: unknown) => void) | null;
+  onsoundstart?: ((ev: unknown) => void) | null;
+  onspeechstart?: ((ev: unknown) => void) | null;
+  onspeechend?: ((ev: unknown) => void) | null;
+  onaudioend?: ((ev: unknown) => void) | null;
   start(): void;
   stop(): void;
   abort(): void;
@@ -155,7 +161,17 @@ export interface WebSpeechDeps {
   now?: () => number;
   setTimer?: (fn: () => void, ms: number) => unknown;
   clearTimer?: (handle: unknown) => void;
+  /** Diagnostic log (the `?debug` panel): recognizer lifecycle, errors, raw transcripts. */
+  debug?: (msg: string) => void;
 }
+
+const PROGRESS_EVENTS = [
+  'audiostart',
+  'soundstart',
+  'speechstart',
+  'speechend',
+  'audioend',
+] as const;
 
 export class WebSpeechEngine implements RecognizerEngine {
   readonly id = 'webspeech' as const;
@@ -229,18 +245,32 @@ export class WebSpeechEngine implements RecognizerEngine {
     rec.interimResults = true;
     rec.maxAlternatives = WEBSPEECH_CONFIG.maxAlternatives;
     rec.lang = this.deps.lang();
+    const log = this.deps.debug;
     rec.onstart = () => {
+      log?.('start');
       if (this.rec === rec) this.setStatus('listening');
     };
     rec.onresult = (ev) => {
+      if (log) {
+        const parts: string[] = [];
+        for (let i = ev.resultIndex; i < ev.results.length; i++) {
+          const r = ev.results[i]!;
+          parts.push(`${r.isFinal ? 'F' : 'i'}"${r[0]?.transcript ?? ''}"`);
+        }
+        log(`result @${ev.resultIndex}/${ev.results.length}: ${parts.join(' ')}`);
+      }
       if (this.rec === rec) this.onResult(ev);
     };
     rec.onerror = (ev) => {
+      log?.(`error: ${ev.error}${ev.message ? ` (${ev.message})` : ''}`);
       if (this.rec === rec) this.onError(ev);
     };
     rec.onend = () => {
+      log?.('end');
       if (this.rec === rec) this.onEnd();
     };
+    if (log) for (const name of PROGRESS_EVENTS) rec[`on${name}`] = () => log(name);
+    log?.(`launch (lang ${rec.lang})`);
     this.rec = rec;
     this.resultStart = 0;
     try {
@@ -311,6 +341,7 @@ export class WebSpeechEngine implements RecognizerEngine {
 
   private detach(rec: SpeechRecognitionLike): void {
     rec.onstart = rec.onend = rec.onresult = rec.onerror = null;
+    for (const name of PROGRESS_EVENTS) if (rec[`on${name}`]) rec[`on${name}`] = null;
   }
 
   private cancelTimer(): void {

@@ -136,3 +136,9 @@ Entry template:
 - Gotchas: modern Chrome exposes unprefixed `SpeechRecognition` (preferred over `webkit…`). Headless Chrome denies recognition (`not-allowed`) and `getUserMedia`, so agent smoke tests used an injected fake recognizer (puppeteer, not committed): privacy dialog once → Listening → tracking → `end` → "Recognizer restarting" → Listening → Pause → denied → "No mic permission" + notice. Meter not verified on real hardware.
 - Deferred: Space = pause/resume (14); controls auto-hide (14).
 - Human check pending: **M2 milestone.** Desktop Chrome (`npm run dev`, localhost): read a sample aloud, check it tracks; stay silent ~1 min then resume (auto-restart); deny mic permission → "No mic permission". Android tablet, Chrome, built-in mic at arm's length in a room with some echo: read the 1,500-word sample at natural pace; note lag, any backward jitter, restart gaps, and whether the mic meter breaks recognition (if it does, turn off Settings → Mic level meter and report). Then push and redeploy.
+
+## Fix — chunk 13 phone test: listening but nothing heard (2026-11-17)
+
+- Owner on Android Chrome (phone): privacy notice, mic prompt, badge "Listening", but no tracking and no level meter. Prime suspect: the meter's second `getUserMedia` stream starving Web Speech on Android (the brief's warning). Not yet confirmed.
+- Added `?debug` (`ui/debuglog.ts`): on-screen log of recognizer lifecycle (`launch/start/audiostart/soundstart/speechstart/…/end`), errors, raw results (`@resultIndex/length`, `i`/`F` per result), status changes, meter failure reason. `WebSpeechDeps.debug` hook.
+- Next: owner retests with Settings → Mic level meter off, and with `?debug`. If meter-off fixes it, default `micMeter` off on Android (or derive the level from recognizer events instead).

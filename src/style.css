@@ -895,3 +895,29 @@ input[type='range']:focus-visible {
     display: none;
   }
 }
+
+/* ---- ?debug diagnostic log ---- */
+.debug-panel {
+  position: absolute;
+  right: 0.5rem;
+  bottom: calc(0.5rem + env(safe-area-inset-bottom));
+  width: min(28rem, calc(100% - 1rem));
+  max-height: 40%;
+  overflow-y: auto;
+  padding: 0.25rem 0.5rem;
+  background: var(--chrome-bg);
+  color: var(--chrome-fg);
+  border: 1px dashed var(--chrome-border);
+  border-radius: 0.5rem;
+  font:
+    0.75rem/1.3 ui-monospace,
+    monospace;
+  opacity: 0.92;
+  z-index: 6;
+}
+
+.debug-lines {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}

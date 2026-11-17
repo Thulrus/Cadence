@@ -69,7 +69,7 @@ export async function createApp(container: HTMLElement): Promise<App> {
     library: () => createLibraryView(deps),
     editor: () => createEditorView(deps),
     prompter: () => createPrompterView(deps),
-    settings: createSettingsView,
+    settings: () => createSettingsView(deps),
   });
   router.start();
 

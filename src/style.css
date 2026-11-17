@@ -508,3 +508,226 @@ textarea:focus-visible {
   box-shadow: 0 0.25rem 1rem rgb(0 0 0 / 0.5);
   z-index: 2;
 }
+
+/* ---- Settings & form fields (chunk 05) ---- */
+.settings-section {
+  margin-block: 1.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--chrome-border);
+}
+
+.settings-section h2 {
+  color: var(--heading);
+  margin-block: 0.5rem 1rem;
+}
+
+.appearance-grid {
+  display: grid;
+  gap: 1.5rem;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@media (min-width: 60rem) {
+  .appearance-grid {
+    grid-template-columns: minmax(18rem, 28rem) minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .preview {
+    position: sticky;
+    top: 0;
+  }
+}
+
+.fields {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  align-items: stretch;
+}
+
+.fields > .btn {
+  align-self: flex-start;
+}
+
+.field {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.field > label,
+.field legend {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+  padding: 0;
+}
+
+.field-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.field-row input[type='range'] {
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+  accent-color: var(--accent);
+}
+
+input[type='number'],
+select {
+  font: inherit;
+  color: var(--fg);
+  background: var(--chrome-bg);
+  border: 1px solid var(--chrome-border);
+  border-radius: 0.4rem;
+  padding: 0.4rem 0.6rem;
+  min-height: 44px;
+}
+
+.field-number {
+  width: 5.5em;
+}
+
+select {
+  width: 100%;
+  max-width: 20rem;
+}
+
+input[type='number']:focus-visible,
+select:focus-visible,
+input[type='range']:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.field-unit,
+.field-hint {
+  opacity: 0.75;
+  font-size: 0.9em;
+}
+
+.field-hint {
+  margin: 0.25rem 0 0;
+}
+
+.field-toggle label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 44px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.field-toggle input {
+  width: 1.5rem;
+  height: 1.5rem;
+  accent-color: var(--accent);
+}
+
+.segments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.segment {
+  position: relative;
+  display: inline-flex;
+}
+
+.segment input {
+  position: absolute;
+  opacity: 0;
+  inset: 0;
+  margin: 0;
+  cursor: pointer;
+}
+
+.segment span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0.4rem 1rem;
+  border: 1px solid var(--chrome-border);
+  border-radius: 0.4rem;
+  background: var(--chrome-bg);
+  color: var(--chrome-fg);
+}
+
+.segment input:checked + span {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--bg);
+  font-weight: 600;
+}
+
+.segment input:focus-visible + span {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Live preview uses the real prompter text styles and transforms. */
+.preview {
+  border: 1px solid var(--chrome-border);
+  border-radius: 0.5rem;
+  overflow: hidden;
+  max-height: 70vh;
+  background: var(--bg);
+}
+
+.preview-stage {
+  transform: scale(var(--prompt-scale-x), var(--prompt-scale-y));
+  overflow: auto;
+  max-height: 70vh;
+}
+
+.preview-text {
+  padding-block: 1rem;
+  margin-inline: 0;
+  max-width: calc(var(--prompt-column) + 2 * var(--prompt-margin));
+}
+
+/* ---- Prompter quick panel (chunk 05) ---- */
+.quick-panel {
+  position: absolute;
+  top: 3.6rem;
+  right: 0.5rem;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: min(20rem, calc(100vw - 1rem));
+  padding: 1rem;
+  background: var(--chrome-bg);
+  color: var(--chrome-fg);
+  border: 1px solid var(--chrome-border);
+  border-radius: 0.5rem;
+  box-shadow: 0 0.5rem 1.5rem rgb(0 0 0 / 0.5);
+}
+
+.quick-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.quick-row .btn {
+  min-width: 4rem;
+  justify-content: center;
+  font-size: 1.2em;
+}
+
+.quick-size {
+  font-variant-numeric: tabular-nums;
+}
+
+.prompter-bar .btn[aria-expanded='true'] {
+  outline: 2px solid var(--accent);
+}

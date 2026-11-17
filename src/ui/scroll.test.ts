@@ -3,6 +3,8 @@ import {
   GESTURE_CONFIG,
   SCROLL_CONFIG,
   classifyGesture,
+  dragScrollTop,
+  screenReadingLinePct,
   easeStep,
   planScroll,
   type ScrollPlan,
@@ -90,5 +92,21 @@ describe('classifyGesture', () => {
   });
   it('a long still press is neither', () => {
     expect(classifyGesture(2, GESTURE_CONFIG.tapMaxMs + 1)).toBe('none');
+  });
+});
+
+describe('mirror/flip math', () => {
+  it('reading line is measured from the visual top; flipped, it sits at 100 - pct on screen', () => {
+    expect(screenReadingLinePct(33, false)).toBe(33);
+    expect(screenReadingLinePct(33, true)).toBe(67);
+  });
+  it('grab-drag follows the pointer, inverted when flipped', () => {
+    // pointer moves down 100px on screen
+    expect(dragScrollTop(500, 100, false)).toBe(400); // content follows down → scroll up
+    expect(dragScrollTop(500, 100, true)).toBe(600); // flipped: screen-down is content-up
+  });
+  it('the scroll plan itself is independent of flip (stage flips as a whole)', () => {
+    const plan = planScroll(null, line(2000), vp, fwd);
+    expect(plan.target).toBe(2000 + 40 - (vp.height * vp.readingPct) / 100);
   });
 });

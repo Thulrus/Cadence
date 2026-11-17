@@ -13,7 +13,7 @@ Milestones follow SPEC §12. Each milestone ends with `main` deployable. Some sp
 | 02  | [Script parsing, normalizer, ScriptIndex](chunks/02-script-parsing.md)              | M1        | DONE   |
 | 03  | [Script library & import/export](chunks/03-script-library.md)                       | M1        | DONE   |
 | 04  | [Prompter display, scrolling, PositionController](chunks/04-prompter-display.md)    | M1        | DONE   |
-| 05  | [Appearance settings panel](chunks/05-appearance-settings.md)                       | M1        | TODO   |
+| 05  | [Appearance settings panel](chunks/05-appearance-settings.md)                       | M1        | DONE   |
 | 06  | [PWA, offline shell, deploy, README](chunks/06-pwa-deploy.md)                       | M1 ✅     | TODO   |
 | 07  | [Numbers & scripture normalization](chunks/07-numbers-scripture.md)                 | M2        | TODO   |
 | 08  | [Weights, phonetics, token similarity](chunks/08-weights-similarity.md)             | M2        | TODO   |

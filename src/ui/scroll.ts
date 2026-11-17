@@ -159,3 +159,25 @@ export class ScrollController {
     this.frame = this.current === this.target ? 0 : requestAnimationFrame(this.tick);
   };
 }
+
+/*
+ * Mirror / flip (decision, chunk 05): the prompter applies scale(x, y) to the whole stage, the
+ * scroller AND the reading-line marker, so all scroll math stays in un-flipped layout
+ * coordinates. `readingLinePct` is therefore always measured from the top *as the reader sees
+ * it* (i.e. in the glass reflection when flipped); on the raw screen a flipped reading line sits
+ * at 100 − pct from the top. Hit testing needs no math: browsers map pointer events through CSS
+ * transforms. Only raw pointer deltas (mouse grab-scroll) must be un-flipped.
+ */
+
+/** Reading line as percent from the top of the physical screen. */
+export function screenReadingLinePct(readingLinePct: number, flipY: boolean): number {
+  return flipY ? 100 - readingLinePct : readingLinePct;
+}
+
+/**
+ * New scrollTop for a grab-drag: the text follows the pointer. With flipY the screen's "down"
+ * is the content's "up", so the delta is inverted.
+ */
+export function dragScrollTop(startScroll: number, pointerDy: number, flipY: boolean): number {
+  return startScroll - pointerDy * (flipY ? -1 : 1);
+}

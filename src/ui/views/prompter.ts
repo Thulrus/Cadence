@@ -5,11 +5,13 @@ import type { ScriptIndex } from '../../core/text/types';
 import type { PositionChange } from '../../core/types';
 import type { AppearanceSettings } from '../../storage/settings';
 import { button, h } from '../components/dom';
+import { createQuickPanel } from '../components/quickpanel';
 import { routeHash, type Route, type View } from '../router';
 import {
   GESTURE_CONFIG,
   ScrollController,
   classifyGesture,
+  dragScrollTop,
   planScroll,
   type LineGeometry,
   type ScrollPlan,
@@ -97,14 +99,16 @@ export function createPrompterView(deps: ViewDeps): View {
         className: 'btn btn-primary resume-follow',
         hidden: true,
       });
+      const quick = createQuickPanel(deps.settings);
+      cleanups.push(() => quick.destroy());
       const bar = h(
         'header',
         { className: 'prompter-bar' },
         h('a', { href: routeHash({ name: 'library' }), className: 'btn' }, '‹ Back'),
         h('span', { className: 'prompter-title' }, rec.title),
-        h('a', { href: routeHash({ name: 'settings' }), className: 'btn' }, 'Settings'),
+        quick.toggle,
       );
-      root = h('section', { className: 'view-prompter' }, bar, stage, resume);
+      root = h('section', { className: 'view-prompter' }, bar, quick.panel, stage, resume);
       container.append(root);
 
       const scroll = new ScrollController(scroller);
@@ -263,7 +267,7 @@ export function createPrompterView(deps: ViewDeps): View {
         // Touch/pen pan natively; mouse gets grab-to-scroll (respecting vertical flip).
         if (press.mouse) {
           if (!scroller.hasPointerCapture(e.pointerId)) scroller.setPointerCapture(e.pointerId);
-          scroller.scrollTop = press.startScroll - dy * (appearance.flipY ? -1 : 1);
+          scroller.scrollTop = dragScrollTop(press.startScroll, dy, appearance.flipY);
         }
       };
       const onUp = (e: PointerEvent) => {

@@ -10,7 +10,7 @@ Milestones follow SPEC §12. Each milestone ends with `main` deployable. Some sp
 | --- | ----------------------------------------------------------------------------------- | --------- | ------ |
 | 00  | Project scaffold & plan (done by planning session)                                  | M1        | DONE   |
 | 01  | [App shell, view routing, settings store](chunks/01-app-shell.md)                   | M1        | DONE   |
-| 02  | [Script parsing, normalizer, ScriptIndex](chunks/02-script-parsing.md)              | M1        | TODO   |
+| 02  | [Script parsing, normalizer, ScriptIndex](chunks/02-script-parsing.md)              | M1        | DONE   |
 | 03  | [Script library & import/export](chunks/03-script-library.md)                       | M1        | TODO   |
 | 04  | [Prompter display, scrolling, PositionController](chunks/04-prompter-display.md)    | M1        | TODO   |
 | 05  | [Appearance settings panel](chunks/05-appearance-settings.md)                       | M1        | TODO   |

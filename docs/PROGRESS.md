@@ -30,3 +30,11 @@ Entry template:
 - Gotchas for later chunks: `update()` merges within a group and silently drops invalid values; `align` overrides can only be removed via `reset('align')`. Prompter CSS should consume `--prompt-*` vars (`--prompt-scale-x/y` for mirror/flip, `--prompt-spoken-opacity`, `--prompt-reading-line`). Dev console handle: `__cadence.settings` / `__cadence.router`.
 - Deferred: none.
 - Human check pending: `npm run dev`, click through the four nav links and use Back; run `__cadence.settings.update({ appearance: { theme: 'light' } })` (and `high-contrast`, `green-on-black`) and confirm colours change and persist across reload.
+
+## Chunk 02 — Script parsing, normalizer, ScriptIndex — DONE (2026-11-17)
+
+- Built: `core/text/types.ts` (data model), `parse.ts` (`parseScript`), `normalize.ts` (`normalizeWords`/`normalizeWord`/`normalizeText`, documented contraction tables), `index.ts` (`buildScriptIndex`, `wordForPosition`, `positionForWord`). 1,500-word build is a few ms.
+- Deviations / contract changes: added `DisplayWord.lineBreakBefore?` and `emphasis?` (ARCHITECTURE.md updated). `wordForPosition` clamps (past end → last token's word; -1 if no tokens).
+- Gotchas for later chunks: chunk 07 plugs into `SEQUENCE_RULES` in `normalize.ts`; rules see lowercased, curly-quote-normalized raw words with punctuation still attached (e.g. `"3:16,"`) and must keep `src` non-decreasing. Rules may emit multi-word text (it's split on whitespace later). `buildScriptIndex` normalizes each run of consecutive speech words within a block together, so a scripture ref broken by a `[direction]` or a block boundary won't be joined. `'d` → "would", `'s` → "is" only for pronoun/wh-stems in `IS_CONTRACTION_STEMS`, otherwise possessive (apostrophe dropped). Direction display text keeps its brackets.
+- Deferred: none.
+- Human check pending: none.

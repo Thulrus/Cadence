@@ -44,7 +44,7 @@ Rules:
 - No runtime network requests. No new runtime dependency without a one-line justification in PROGRESS.md. Dev dependencies are fine.
 - No framework. Vanilla DOM + small helper functions. (Spec allows Preact/Lit only if it genuinely simplifies; don't introduce one without a recorded reason.)
 
-## Core data model (chunk 02 creates these in `src/core/text/`)
+## Core data model (`src/core/text/types.ts`)
 
 ```ts
 type WordKind = 'speech' | 'heading' | 'direction';
@@ -55,6 +55,8 @@ interface DisplayWord {
   block: number; // index into blocks
   tokenStart: number; // [tokenStart, tokenEnd) range in ScriptIndex.tokens; empty if not spoken
   tokenEnd: number;
+  lineBreakBefore?: boolean; // single newline before this word inside its paragraph
+  emphasis?: boolean; // inside *...* / **...** / _..._ (markers stripped from text)
 }
 
 interface Block {
@@ -84,6 +86,7 @@ interface ScriptIndex {
 
 - Only `speech` words produce match tokens. Headings and `[directions]` are displayed but never matched.
 - **Position** = index into `ScriptIndex.tokens` of the next token the speaker is expected to say. `0` = start, `tokens.length` = finished. The renderer maps position → display word via `tokens[p].word`.
+- Normalizer pipeline (`normalize.ts`): prepare → `SEQUENCE_RULES` (hook over the raw word sequence; chunk 07 adds numbers/scripture) → dash split → contractions → strip punctuation. Each output token keeps `src` (raw word index); rules must keep `src` non-decreasing.
 - The same `normalize` pipeline is applied to script text and recognized text (contractions expand both sides: "don't" → `do not`; digits → words both sides).
 
 ## Settings

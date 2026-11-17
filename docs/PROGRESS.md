@@ -46,3 +46,8 @@ Entry template:
 - Gotchas for later chunks: library "Open" and editor "Start prompter" already call `markOpened`, then route to `#/prompter/<id>`; the prompter (04) should read `deps.scripts.get(id)` and handle a missing id. At `#/editor` the editor creates the record on first input and swaps the URL with `history.replaceState` (no remount). Use `deps.notices.show()` for non-blocking messages. The nav bar no longer lists Editor/Prompter.
 - Deferred: none. (A 404 for `/favicon.ico` in dev is expected until chunk 06.)
 - Human check pending: in `npm run dev`, create → edit → reload → still there; rename/duplicate/delete; "Load file" with a .txt/.md and drag-drop onto library and editor; Export backup then Import backup. On the Android tablet, confirm "Load file" opens the picker and both exports download a file. (Agent smoke-tested these flows in headless Chrome, except the real file picker and downloads.)
+
+## Fix — CI `npm ci` lockfile mismatch (2026-11-17)
+
+- Chunk 03's lockfile was written by local npm 11, which pruned the optional `@emnapi/core`/`@emnapi/runtime` entries (needed by rolldown's wasm binding). CI's Node 22 npm 10 then failed `npm ci`. Regenerated with npm 10.
+- Gotcha: **change dependencies with `npx npm@10 install …`** (matches CI's Node 22), and verify with `npx npm@10 ci` before committing.

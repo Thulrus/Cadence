@@ -138,16 +138,18 @@ export function createPrompterView(deps: ViewDeps): View {
         'Lost — tap a word to resync',
       );
       lostBadge.setAttribute('role', 'status');
-      root = h(
-        'section',
-        { className: 'view-prompter' },
-        bar,
-        quick.panel,
+      // Everything that floats over the text lives in stageArea, which starts below the
+      // bar, so overlays size to the space actually left (the bar may wrap on narrow screens).
+      const stageArea = h(
+        'div',
+        { className: 'prompter-main' },
         stage,
+        quick.panel,
         resume,
         toast,
         lostBadge,
       );
+      root = h('section', { className: 'view-prompter' }, bar, stageArea);
       container.append(root);
 
       const scroll = new ScrollController(scroller);
@@ -372,7 +374,7 @@ export function createPrompterView(deps: ViewDeps): View {
       const devTools = import.meta.env.DEV || forceSim;
       const debugLog = debugEnabled(location.search) ? createDebugPanel() : null;
       if (debugLog) {
-        root.append(debugLog.el);
+        stageArea.append(debugLog.el);
         cleanups.push(() => debugLog.el.remove());
         debugLog.log(
           `engine ${resolved.engine}; webSpeech ${caps.webSpeech}, secure ${caps.secure}, getUserMedia ${caps.getUserMedia}, meter setting ${engineSettings.micMeter}, android ${caps.android}`,
@@ -435,7 +437,7 @@ export function createPrompterView(deps: ViewDeps): View {
         engine = sim;
         const panel = createSimPanel(sim, index, () => ctl.position);
         sim.events.on('status', ({ status }) => panel.setStatus(status));
-        root.append(panel.el);
+        stageArea.append(panel.el);
         cleanups.push(() => panel.destroy());
       }
 
@@ -504,7 +506,7 @@ export function createPrompterView(deps: ViewDeps): View {
       privacy.setAttribute('role', 'dialog');
       privacy.setAttribute('aria-modal', 'true');
       privacy.addEventListener('pointerdown', (e) => e.stopPropagation());
-      root.append(privacy);
+      stageArea.append(privacy);
 
       function toggleListening(): void {
         if (!session) return;

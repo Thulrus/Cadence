@@ -57,6 +57,11 @@ export interface EngineSettings {
   micMeter: MicMeterMode;
   /** The one-time Web Speech privacy notice was acknowledged. */
   privacyNoticeSeen: boolean;
+  /**
+   * File name of the installed on-device model ('' = none). A cache of what's in IndexedDB so
+   * engine selection is synchronous; the prompter re-checks storage and clears it if stale.
+   */
+  offlineModel: string;
 }
 
 export type AlignOverrides = Record<string, number | boolean>;
@@ -109,7 +114,13 @@ export const DEFAULT_SETTINGS: Readonly<Settings> = Object.freeze({
     autoHideSec: 3,
     timer: 'always',
   },
-  engine: { choice: 'auto', lang: 'en-US', micMeter: 'auto', privacyNoticeSeen: false },
+  engine: {
+    choice: 'auto',
+    lang: 'en-US',
+    micMeter: 'auto',
+    privacyNoticeSeen: false,
+    offlineModel: '',
+  },
   align: {},
 } satisfies Settings);
 
@@ -194,6 +205,8 @@ function sanitizeEngine(raw: unknown, base: EngineSettings): EngineSettings {
           : 'off'
         : oneOf(r.micMeter, MIC_METER_MODES, base.micMeter),
     privacyNoticeSeen: bool(r.privacyNoticeSeen, base.privacyNoticeSeen),
+    // '' is meaningful here (no model), so not `str()`, which treats blank as missing.
+    offlineModel: typeof r.offlineModel === 'string' ? r.offlineModel : base.offlineModel,
   };
 }
 

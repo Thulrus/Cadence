@@ -10,6 +10,10 @@ import type { EngineStatus, PositionChange, RecognizerEngine } from '../../core/
 import { MicMeter } from '../../engines/micmeter';
 import { getSpeechRecognition, WebSpeechEngine } from '../../engines/webspeech';
 import { SimulatedEngine } from '../../engines/simulated';
+import { startCapture } from '../../engines/offline/capture';
+import { OfflineEngine } from '../../engines/offline/engine';
+import { buildGrammar } from '../../engines/offline/grammar';
+import { loadVoskModel } from '../../engines/offline/vosk';
 import {
   RUN_MODES,
   SETTINGS_LIMITS,
@@ -31,7 +35,14 @@ import {
 import { actionForKey, isTypingTarget } from '../keys';
 import { canAutoHide, nearEdge, RunController, type RunDriver } from '../run';
 import { createSimPanel, DEVSIM_CONFIG, simEnabled } from '../devsim';
-import { browserEnv, detectCapabilities, meterEnabled, resolveEngine } from '../capabilities';
+import {
+  browserEnv,
+  detectCapabilities,
+  meterEnabled,
+  resolveEngine,
+  type EngineResolution,
+} from '../capabilities';
+import { offlineReady } from '../offline';
 import {
   jumpMessage,
   linesBetween,
@@ -291,6 +302,8 @@ export function createPrompterView(deps: ViewDeps): View {
       }
 
       let session: VoiceFollowSession | null = null;
+      /** Set in the voice section: re-resolve the engine after an engine settings change. */
+      let onEngineSettings = (): void => {};
       // Assigned in the run section below; declared here because earlier handlers use them.
       let timed: TimedScroller;
       let run: RunController;
@@ -404,6 +417,7 @@ export function createPrompterView(deps: ViewDeps): View {
         }),
         deps.settings.on('change', ({ settings, groups }) => {
           if (groups.includes('align')) session?.setConfig(resolveConfig(settings.align));
+          if (groups.includes('engine')) onEngineSettings();
           if (groups.includes('run')) {
             timed.setWpm(settings.run.timedWpm);
             renderRun();
@@ -507,18 +521,20 @@ export function createPrompterView(deps: ViewDeps): View {
       // ---- voice follow ----
       const caps = detectCapabilities(browserEnv());
       const forceSim = simEnabled(location.search);
-      const engineSettings = deps.settings.get().engine;
-      const resolved = resolveEngine(engineSettings.choice, caps, {
-        dev: import.meta.env.DEV,
-        forceSim,
-      });
+      const resolveNow = () =>
+        resolveEngine(deps.settings.get().engine.choice, caps, {
+          dev: import.meta.env.DEV,
+          forceSim,
+          offlineReady: offlineReady(deps.settings, deps.offline),
+        });
+      let resolved = resolveNow();
       const devTools = import.meta.env.DEV || forceSim;
       const debugLog = debugEnabled(location.search) ? createDebugPanel() : null;
       if (debugLog) {
         stageArea.append(debugLog.el);
         cleanups.push(() => debugLog.el.remove());
         debugLog.log(
-          `engine ${resolved.engine}; webSpeech ${caps.webSpeech}, secure ${caps.secure}, getUserMedia ${caps.getUserMedia}, meter setting ${engineSettings.micMeter}, android ${caps.android}`,
+          `engine ${resolved.engine}; webSpeech ${caps.webSpeech}, secure ${caps.secure}, getUserMedia ${caps.getUserMedia}, audioWorklet ${caps.audioWorklet}, meter setting ${deps.settings.get().engine.micMeter}, android ${caps.android}`,
         );
       }
       if (resolved.note) deps.notices.show(resolved.note, 'info', PROMPTER_CONFIG.noteMs);
@@ -546,15 +562,21 @@ export function createPrompterView(deps: ViewDeps): View {
             }
           });
         }
-        cleanups.push(() => s.destroy());
         return s;
       }
 
       let engine: RecognizerEngine | null = null;
       let meterOn = false;
-      if (resolved.engine === 'webspeech') {
-        const Recognition = getSpeechRecognition();
-        if (Recognition) {
+      let simPanel: { destroy(): void } | null = null;
+      // The script grammar for the on-device engine; built once, on first start.
+      let grammar: string[] | null = null;
+
+      function createEngine(r: EngineResolution): RecognizerEngine | null {
+        const engineSettings = deps.settings.get().engine;
+        meterOn = false;
+        if (r.engine === 'webspeech') {
+          const Recognition = getSpeechRecognition();
+          if (!Recognition) return null;
           meterOn = meterEnabled(engineSettings.micMeter, caps);
           const meter = meterOn
             ? new MicMeter({
@@ -567,7 +589,7 @@ export function createPrompterView(deps: ViewDeps): View {
               })
             : null;
           try {
-            engine = new WebSpeechEngine({
+            return new WebSpeechEngine({
               Recognition,
               lang: () => deps.settings.get().engine.lang,
               meter,
@@ -577,19 +599,35 @@ export function createPrompterView(deps: ViewDeps): View {
             // Engine couldn't be built: the prompter still works in timed/manual mode.
             console.error('[cadence] speech engine unavailable:', e);
             deps.notices.show(VOICE_FAILED_MESSAGE, 'warning');
+            return null;
           }
         }
-      } else if (resolved.engine === 'simulated') {
-        const sim = new SimulatedEngine();
-        engine = sim;
-        const panel = createSimPanel(sim, index, () => ctl.position);
-        sim.events.on('status', ({ status }) => panel.setStatus(status));
-        stageArea.append(panel.el);
-        cleanups.push(() => panel.destroy());
+        if (r.engine === 'offline') {
+          const modelUrl = deps.offline?.modelUrl;
+          if (!modelUrl) return null;
+          // The level comes from the engine's own capture stream, so it's safe on Android.
+          meterOn = engineSettings.micMeter !== 'off';
+          return new OfflineEngine({
+            modelUrl,
+            grammar: () => (grammar ??= buildGrammar(index)),
+            loadModel: loadVoskModel,
+            startCapture,
+            debug: debugLog?.log,
+          });
+        }
+        if (r.engine === 'simulated') {
+          const sim = new SimulatedEngine();
+          const panel = createSimPanel(sim, index, () => ctl.position);
+          sim.events.on('status', ({ status }) => panel.setStatus(status));
+          stageArea.append(panel.el);
+          simPanel = panel;
+          return sim;
+        }
+        return null;
       }
 
       // Bar controls: status badge, level meter, Start/Pause listening.
-      const badge = h('span', { className: 'listen-badge', hidden: !engine });
+      const badge = h('span', { className: 'listen-badge', hidden: true });
       const meterFill = h('span', { className: 'listen-meter-fill' });
       const meterEl = h('span', { className: 'listen-meter', hidden: true }, meterFill);
       meterEl.setAttribute('aria-hidden', 'true');
@@ -619,7 +657,7 @@ export function createPrompterView(deps: ViewDeps): View {
         h(
           'p',
           {},
-          'Voice following uses your browser’s speech service. In Chrome, your microphone audio is sent to Google to be transcribed, so it needs an internet connection. Cadence itself never sends or stores audio or scripts.',
+          'Voice following uses your browser’s speech service. In Chrome, your microphone audio is sent to Google to be transcribed, so it needs an internet connection. Cadence itself never sends or stores audio or scripts. To keep audio on this device instead, download the on-device speech model in Settings.',
         ),
         h(
           'p',
@@ -633,7 +671,10 @@ export function createPrompterView(deps: ViewDeps): View {
         h(
           'div',
           { className: 'privacy-actions' },
-          button('Cancel', () => (privacy.hidden = true)),
+          button('Cancel', () => {
+            privacy.hidden = true;
+            listenWanted = false;
+          }),
           button(
             'Start listening',
             () => {
@@ -650,8 +691,16 @@ export function createPrompterView(deps: ViewDeps): View {
       privacy.addEventListener('pointerdown', (e) => e.stopPropagation());
       stageArea.append(privacy);
 
+      /**
+       * The user pressed Start in Voice mode and hasn't paused since. Kept separately from
+       * `run.active` (which waits for the engine to report listening) so an engine switch
+       * mid-start, or one that stopped at the privacy notice, still carries the intent over.
+       */
+      let listenWanted = false;
+
       /** Voice driver start: re-centre on the current position, then listen. */
       function startListening(): void {
+        listenWanted = true;
         if (!session) return;
         session.resync();
         if (engine?.id === 'webspeech' && !deps.settings.get().engine.privacyNoticeSeen) {
@@ -661,9 +710,13 @@ export function createPrompterView(deps: ViewDeps): View {
         void session.start(); // inside the click/key: Web Speech needs a user gesture
       }
 
-      if (engine) {
-        session = startFollow(engine);
-        session.events.on('status', (st) => {
+      /** Build the resolved engine and its follow session. Position stays with `ctl`. */
+      function attachVoice(): void {
+        engine = createEngine(resolved);
+        if (!engine) return;
+        const s = startFollow(engine);
+        session = s;
+        s.events.on('status', (st) => {
           debugLog?.log(`status ${st.status}${st.message ? `: ${st.message}` : ''}`);
           engineStatus = st;
           renderStatus();
@@ -674,21 +727,62 @@ export function createPrompterView(deps: ViewDeps): View {
             );
           }
         });
-        session.events.on('failed', () => {
+        s.events.on('failed', () => {
           deps.notices.show(VOICE_FAILED_MESSAGE, 'warning');
           // Fall back to manual for this run; the stored mode stays Voice for next time.
           if (run.mode === 'voice') run.setMode('manual');
         });
-        session.events.on('lost', renderStatus);
-        session.events.on('level', (l) => {
+        s.events.on('lost', renderStatus);
+        s.events.on('level', (l) => {
           meterFill.style.transform = `scaleX(${l.toFixed(3)})`;
         });
         renderStatus();
         // Dev console handle: __cadenceFollow.aligner.state etc.
         if (devTools) {
-          (window as unknown as { __cadenceFollow?: VoiceFollowSession }).__cadenceFollow = session;
+          (window as unknown as { __cadenceFollow?: VoiceFollowSession }).__cadenceFollow = s;
         }
       }
+
+      function detachVoice(): void {
+        session?.destroy();
+        session = null;
+        engine = null;
+        simPanel?.destroy();
+        simPanel = null;
+        engineStatus = { status: 'idle' };
+        privacy.hidden = true;
+      }
+
+      attachVoice();
+      cleanups.push(detachVoice);
+      // Warm the on-device model while the speaker gets ready (it takes seconds on phones).
+      const first = engine as RecognizerEngine | null; // (TS can't see attachVoice assign it)
+      if (first?.id === 'offline' && deps.offline?.modelUrl && runSettings().mode === 'voice') {
+        void loadVoskModel(deps.offline.modelUrl).catch(() => {});
+      }
+      // The installed-model flag is a cache: re-check storage, and switch if it was stale.
+      void deps.offline?.refresh();
+
+      /**
+       * Engine settings changed mid-run (quick panel, or the model finished downloading):
+       * swap engines in place. Position lives in `ctl`, so nothing is lost; if voice was
+       * listening it keeps listening on the new engine.
+       */
+      onEngineSettings = () => {
+        const next = resolveNow();
+        if (next.engine === resolved.engine) return;
+        resolved = next;
+        const wasListening = run.mode === 'voice' && (run.active || listenWanted);
+        detachVoice();
+        attachVoice();
+        debugLog?.log(`engine switched to ${resolved.engine}`);
+        if (resolved.note) deps.notices.show(resolved.note, 'info', PROMPTER_CONFIG.noteMs);
+        modeBtns.get('voice')!.hidden = !session;
+        if (!session && run.mode === 'voice') run.setMode('manual');
+        else if (wasListening) startListening();
+        renderRun();
+        renderStatus();
+      };
 
       // ---- run: mode, pause/resume, timed scroll, clock ----
       const words = new SpokenWords(index);
@@ -696,7 +790,14 @@ export function createPrompterView(deps: ViewDeps): View {
       let timedLoop: ReturnType<typeof setInterval> | undefined;
       const stopTimedLoop = () => clearInterval(timedLoop);
       const drivers: Record<RunMode, RunDriver> = {
-        voice: { deferred: true, start: startListening, stop: () => session?.stop() },
+        voice: {
+          deferred: true,
+          start: startListening,
+          stop: () => {
+            listenWanted = false;
+            session?.stop();
+          },
+        },
         timed: {
           start: () => {
             timed.setPosition(ctl.position);

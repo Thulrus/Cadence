@@ -1,6 +1,7 @@
 import type { ScriptRecord, ScriptStore } from '../../storage/scripts';
 import type { SettingsStore } from '../../storage/settings';
 import type { Notices } from '../components/notice';
+import type { OfflineModelService } from '../offline';
 import { classifyFile, downloadText, readBackupFile, readScriptFile, safeFilename } from '../files';
 import type { Route } from '../router';
 
@@ -9,6 +10,8 @@ export interface ViewDeps {
   scripts: ScriptStore;
   settings: SettingsStore;
   notices: Notices;
+  /** On-device speech model (download/delete/status). Absent in some view tests. */
+  offline?: OfflineModelService;
   navigate(route: Route): void;
 }
 

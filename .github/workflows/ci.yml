@@ -25,6 +25,13 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
+      # On-device speech model (served from this site's models/; see docs/decisions/0001).
+      # The upstream zip is pinned by SHA-256 and cached between runs.
+      - uses: actions/cache@v4
+        with:
+          path: .cache/models
+          key: vosk-model-${{ hashFiles('scripts/build-model.mjs') }}
+      - run: npm run model
       - run: npm run check
         env:
           BASE_PATH: /${{ github.event.repository.name }}/

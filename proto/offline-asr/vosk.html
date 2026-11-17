@@ -1,0 +1,69 @@
+<!doctype html>
+<meta charset="utf-8" />
+<script src="vosk.js"></script>
+<script>
+  async function loadWav(url) {
+    const buf = await (await fetch(url)).arrayBuffer();
+    const dv = new DataView(buf);
+    let off = 12;
+    while (off < dv.byteLength) {
+      const id = String.fromCharCode(...new Uint8Array(buf, off, 4));
+      const size = dv.getUint32(off + 4, true);
+      if (id === 'data') {
+        const n = size / 2;
+        const out = new Float32Array(n);
+        for (let i = 0; i < n; i++) out[i] = dv.getInt16(off + 8 + i * 2, true) / 32768;
+        return out;
+      }
+      off += 8 + size;
+    }
+  }
+  let model;
+  window.loadModel = async (url = 'vosk-small.tar.gz') => {
+    const t0 = performance.now();
+    model = await Vosk.createModel(url, -1);
+    return performance.now() - t0;
+  };
+  // mode: 'realtime' | 'fast'
+  window.run = async (wavUrl, grammar, mode, chunkMs = 100) => {
+    const samples = await loadWav(wavUrl);
+    const rate = 16000;
+    const rec = grammar
+      ? new model.KaldiRecognizer(rate, grammar)
+      : new model.KaldiRecognizer(rate);
+    rec.setWords(true);
+    const events = [];
+    let t0 = 0;
+    let done;
+    const finished = new Promise((r) => (done = r));
+    let ending = false;
+    rec.on('partialresult', (m) => {
+      events.push({ t: performance.now() - t0, isFinal: false, text: m.result.partial });
+    });
+    rec.on('result', (m) => {
+      events.push({
+        t: performance.now() - t0,
+        isFinal: true,
+        text: m.result.text,
+        words: m.result.result,
+      });
+      if (ending) done();
+    });
+    const chunk = Math.round((rate * chunkMs) / 1000);
+    t0 = performance.now();
+    for (let i = 0, k = 0; i < samples.length; i += chunk, k++) {
+      if (mode === 'realtime') {
+        const due = t0 + k * chunkMs;
+        const wait = due - performance.now();
+        if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+      }
+      rec.acceptWaveformFloat(samples.slice(i, i + chunk), rate);
+    }
+    ending = true;
+    rec.retrieveFinalResult();
+    await Promise.race([finished, new Promise((r) => setTimeout(r, 120000))]);
+    const total = performance.now() - t0;
+    rec.remove();
+    return { total, audioMs: (samples.length / rate) * 1000, events };
+  };
+</script>

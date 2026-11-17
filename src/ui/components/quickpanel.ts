@@ -1,9 +1,15 @@
-import { SETTINGS_LIMITS, THEMES, type SettingsStore } from '../../storage/settings';
+import {
+  ENGINE_CHOICES,
+  SETTINGS_LIMITS,
+  THEMES,
+  type EngineChoice,
+  type SettingsStore,
+} from '../../storage/settings';
 import { THEME_LABELS, stepFontSize } from '../appearance';
 import { routeHash } from '../router';
 import { button, h } from './dom';
 import { rangeField, selectField, toggleField } from './fields';
-import { targetField } from '../views/settings';
+import { ENGINE_LABELS, targetField } from '../views/settings';
 
 export interface QuickPanel {
   /** Top-bar button that opens/closes the panel. */
@@ -14,7 +20,7 @@ export interface QuickPanel {
 }
 
 /**
- * Compact in-run panel (font size −/+, reading line, theme, mirror/flip, target time). Lives inside the prompter
+ * Compact in-run panel (font size −/+, reading line, theme, speech engine, mirror/flip, target time). Lives inside the prompter
  * view so opening it never loses the reading position.
  */
 export function createQuickPanel(settings: SettingsStore): QuickPanel {
@@ -41,6 +47,13 @@ export function createQuickPanel(settings: SettingsStore): QuickPanel {
       options: THEMES.map((t) => ({ value: t, label: THEME_LABELS[t] })),
       get: () => a().theme,
       set: (theme) => settings.update({ appearance: { theme: theme as (typeof THEMES)[number] } }),
+    }),
+    // Switching engines mid-run keeps the position (the prompter swaps engines in place).
+    selectField({
+      label: 'Speech engine',
+      options: ENGINE_CHOICES.map((c) => ({ value: c, label: ENGINE_LABELS[c] })),
+      get: () => settings.get().engine.choice,
+      set: (choice) => settings.update({ engine: { choice: choice as EngineChoice } }),
     }),
     toggleField({
       label: 'Mirror',
@@ -112,7 +125,7 @@ export function createQuickPanel(settings: SettingsStore): QuickPanel {
   document.addEventListener('keydown', onKey);
   const off = settings.on('change', ({ groups }) => {
     if (groups.includes('run')) target.sync();
-    if (!groups.includes('appearance')) return;
+    if (!groups.includes('appearance') && !groups.includes('engine')) return;
     syncSize();
     for (const f of fields) f.sync();
   });

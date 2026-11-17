@@ -13,7 +13,8 @@
     "test:watch": "vitest",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "check": "npm run format:check && npm run typecheck && npm run test && npm run build"
+    "check": "npm run format:check && npm run typecheck && npm run test && npm run build",
+    "model": "node scripts/build-model.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.20.5",
@@ -26,6 +27,7 @@
     "workbox-window": "^7.4.1"
   },
   "dependencies": {
-    "double-metaphone": "^2.0.1"
+    "double-metaphone": "^2.0.1",
+    "vosk-browser": "0.0.8"
   }
 }

@@ -1,4 +1,6 @@
 import { browserEnv, detectCapabilities, resolveEngine } from '../capabilities';
+import { modelPanel, type ModelPanel } from '../components/modelpanel';
+import { offlineReady } from '../offline';
 import { ALIGN_DEFAULTS, ALIGN_TUNING, resolveConfig } from '../../core/align/config';
 import {
   ENGINE_CHOICES,
@@ -152,10 +154,10 @@ const MIC_METER_LABELS: Record<MicMeterMode, string> = {
   off: 'Off',
 };
 
-const ENGINE_LABELS: Record<EngineChoice, string> = {
-  auto: 'Automatic',
+export const ENGINE_LABELS: Record<EngineChoice, string> = {
+  auto: 'Automatic (on-device when downloaded)',
   webspeech: 'Browser speech service',
-  offline: 'Offline (not available yet)',
+  offline: 'On-device',
 };
 
 /** Speech engine controls, bound to the settings store. */
@@ -323,10 +325,11 @@ function preview(): HTMLElement {
 }
 
 /** Persistent explanation when voice following can't run in this browser (or is limited). */
-function voiceSupportNote(): HTMLElement | null {
+function voiceSupportNote(offlineReady: boolean): HTMLElement | null {
   const r = resolveEngine('auto', detectCapabilities(browserEnv()), {
     dev: false,
     forceSim: false,
+    offlineReady,
   });
   if (!r.note) return null;
   return h(
@@ -340,10 +343,15 @@ function voiceSupportNote(): HTMLElement | null {
 export function createSettingsView(deps: ViewDeps): View {
   let root: HTMLElement | null = null;
   let off: (() => void) | null = null;
+  let panelRef: ModelPanel | null = null;
   return {
     mount(container: HTMLElement) {
       const fields = appearanceFields(deps.settings);
       const engine = engineFields(deps.settings);
+      const panel = deps.offline ? modelPanel(deps.offline) : null;
+      panelRef = panel;
+      if (deps.offline) void deps.offline.refresh();
+      let supportNote = voiceSupportNote(offlineReady(deps.settings, deps.offline));
       const reset = button('Reset appearance', () => deps.settings.reset('appearance'));
       const run = runFields(deps.settings);
       const tuning = tuningFields(deps.settings);
@@ -396,10 +404,11 @@ export function createSettingsView(deps: ViewDeps): View {
           h(
             'p',
             { className: 'field-hint' },
-            'With the browser speech service (Chrome), microphone audio is sent to Google to be transcribed and needs an internet connection. Changes apply the next time listening starts.',
+            'With the browser speech service (Chrome), microphone audio is sent to Google to be transcribed and needs an internet connection. The on-device model keeps audio on this device. Changes apply the next time listening starts.',
           ),
-          voiceSupportNote(),
+          supportNote,
           h('div', { className: 'fields' }, ...engine.map((f) => f.el)),
+          panel?.el,
         ),
         h(
           'section',
@@ -412,13 +421,21 @@ export function createSettingsView(deps: ViewDeps): View {
       container.append(root);
       off = deps.settings.on('change', ({ groups }) => {
         if (groups.includes('appearance')) for (const f of fields) f.sync();
-        if (groups.includes('engine')) for (const f of engine) f.sync();
+        if (groups.includes('engine')) {
+          for (const f of engine) f.sync();
+          const next = voiceSupportNote(offlineReady(deps.settings, deps.offline));
+          if (supportNote) supportNote.replaceWith(next ?? '');
+          else if (next) engine[0]?.el.parentElement?.before(next);
+          supportNote = next;
+        }
         if (groups.includes('run')) for (const f of run) f.sync();
         if (groups.includes('align')) for (const f of tuning) f.sync();
       });
     },
     unmount() {
       off?.();
+      panelRef?.destroy();
+      panelRef = null;
       root?.remove();
       root = null;
     },

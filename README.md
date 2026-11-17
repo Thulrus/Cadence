@@ -6,7 +6,7 @@ A voice-following teleprompter that runs in the browser. It listens through the 
 
 Free and runs entirely in your browser: no account, no sign-up, no purchase, nothing to download. Just open the link. You can optionally install it as an app, and it then works offline.
 
-> Status: v1 (voice following with the browser's speech service, timed and manual modes). An on-device offline speech engine is next. See `SPEC.md` for the product spec and `docs/PLAN.md` for the build plan.
+> Status: v1 plus on-device speech (voice following with an on-device recognizer or the browser's speech service, timed and manual modes). See `SPEC.md` for the product spec and `docs/PLAN.md` for the build plan.
 
 ## Install
 
@@ -21,6 +21,10 @@ Installing is optional. Open <https://thulrus.github.io/Cadence/> in Chrome (And
 3. Choose **Open** to start the prompter, pick a mode (**Voice**, **Timed**, **Manual**) in the top bar, and tap **Start**.
 
 Scripts save automatically as you type. **Export backup** downloads every script as one `.json` file; **Import backup** merges one back in (newer copies win). **Export .txt** saves a single script.
+
+### On-device speech (recommended)
+
+Settings → Speech engine → **Download model** (one-time, about 29 MB, English). After that, voice following runs entirely on your device: audio never leaves it, it works with no internet (airplane mode is fine), and it typically follows within a fraction of a second. It listens specifically for the words in your script, which also makes it robust in echoey rooms. **Automatic** uses it whenever it's downloaded; without it Cadence uses the browser's speech service. You can switch engines mid-talk from **Aa** without losing your place. **Delete model** in the same place frees the space.
 
 ### Modes
 
@@ -66,7 +70,8 @@ Settings → **Advanced** → **Show advanced** exposes every voice-alignment th
 ## Privacy
 
 - **Your scripts stay on your device.** They are stored in the browser (IndexedDB, settings in localStorage). There is no server, account, analytics, or third-party request. Use **Export backup** to keep a copy.
-- **Speech recognition:** voice following uses the browser's Web Speech API. On Chrome your microphone audio is sent to the browser vendor's (Google's) speech service to be transcribed, so it needs an internet connection; Cadence shows a one-time notice before the first start. Cadence itself never sends or stores audio. The optional mic level meter reads the microphone locally only. An on-device offline engine that keeps everything local is planned. Browsers without Web Speech (Firefox) get timed and manual modes only.
+- **On-device speech (recommended):** with the on-device model downloaded, recognition runs in your browser on your device. **No audio or text leaves the device**, and no network is needed. The model is downloaded once from this site (not a third party) and stored in the browser's on-device storage.
+- **Browser speech service:** without the model, voice following uses the browser's Web Speech API. On Chrome your microphone audio is sent to the browser vendor's (Google's) speech service to be transcribed, so it needs an internet connection; Cadence shows a one-time notice before the first start. Cadence itself never sends or stores audio. The optional mic level meter reads the microphone locally only.
 
 ## Writing scripts
 
@@ -85,12 +90,12 @@ Numbers, dates, times, money, and scripture references can be written naturally 
 
 ## Browser support
 
-| Browser                          | Voice following                                              | Timed / manual | Notes                                                                                     |
-| -------------------------------- | ------------------------------------------------------------ | -------------- | ----------------------------------------------------------------------------------------- |
-| Chrome on Android (tablet/phone) | Yes (needs internet)                                         | Yes            | Primary target. The mic level meter is off by default here: it stops Android recognition. |
-| Chrome / Edge on desktop         | Yes (needs internet)                                         | Yes            | Primary target.                                                                           |
-| Safari on iPad / iPhone          | Best effort: may stop unexpectedly; not in a home-screen app | Yes            | Cadence shows a note. Use Timed mode if it's unreliable.                                  |
-| Firefox                          | No (no speech recognition in Firefox)                        | Yes            | The Voice mode is hidden and a note explains why.                                         |
+| Browser                          | On-device voice (after model download) | Browser speech service                                       | Timed / manual | Notes                                                                                                  |
+| -------------------------------- | -------------------------------------- | ------------------------------------------------------------ | -------------- | ------------------------------------------------------------------------------------------------------ |
+| Chrome on Android (tablet/phone) | Yes, offline                           | Yes (needs internet)                                         | Yes            | Primary target. With the browser service the mic level meter is off by default (it stops recognition). |
+| Chrome / Edge on desktop         | Yes, offline                           | Yes (needs internet)                                         | Yes            | Primary target.                                                                                        |
+| Firefox                          | Yes, offline                           | No (no speech recognition in Firefox)                        | Yes            | Without the model, Voice mode is hidden and a note explains why.                                       |
+| Safari on iPad / iPhone          | Not tested                             | Best effort: may stop unexpectedly; not in a home-screen app | Yes            | Cadence shows a note. Use Timed mode if it's unreliable.                                               |
 
 Voice following also needs a secure (`https://`) page, which GitHub Pages provides. Where voice isn't available, Settings → Speech engine says why.
 
@@ -102,7 +107,10 @@ npm run dev      # dev server at http://localhost:5173 (secure context for the m
 npm test         # unit tests (Vitest)
 npm run check    # format check, typecheck, tests, build (what CI runs)
 npm run format   # fix formatting
+npm run model    # build the on-device speech model into public/models/ (downloads ~41 MB once)
 ```
+
+Without `npm run model` the app works, but **Download model** reports that this build has no model. CI runs it before deploying; see `docs/decisions/0001-offline-asr.md`.
 
 The service worker is only built for production. To try the PWA locally under the Pages subpath:
 
@@ -117,7 +125,7 @@ Change dependencies with `npx npm@10 install …` so the lockfile matches CI's N
 
 1. Create a GitHub repository named `Cadence` and push `main`.
 2. In the repository, **Settings → Pages → Source: GitHub Actions**.
-3. Every push to `main` runs `.github/workflows/ci.yml`: `npm run check` with `BASE_PATH=/<repo>/`, then deploys `dist/` to `https://<user>.github.io/Cadence/`.
+3. Every push to `main` runs `.github/workflows/ci.yml`: `npm run model` (on-device speech model, cached), `npm run check` with `BASE_PATH=/<repo>/`, then deploys `dist/` to `https://<user>.github.io/Cadence/`.
 
 ## Manual device test checklist
 
@@ -137,6 +145,8 @@ Run before relying on a new version for a real talk. Each item names the SPEC §
 - [ ] **Display:** rotate portrait ↔ landscape mid-run (the current line stays on the reading line); change size/theme with **Aa** mid-run; ⛶ fullscreen; controls auto-hide during a run and come back with a tap near the top or bottom edge.
 - [ ] **Mirror/flip** with real prompter glass, if available: scrolling and tap-to-word still land on the right word.
 - [ ] **Mic permission denied** (site settings → block microphone, then Start): badge shows "No mic permission" and a notice explains how to allow it.
+- [ ] **On-device, airplane mode** (M4). On Wi-Fi: Settings → Speech engine → Download model (watch the progress; Cancel works; it ends with "Downloaded"). Turn on airplane mode, close and reopen the app, open the 1,500-word sample, Voice, Start. Note how long until "Listening" (first time, then again after Pause/Start), the lag behind your voice, and whether it keeps up for 10+ minutes. Compare with the browser service. Repeat the Ad-lib and Skip items.
+- [ ] **Engine switch mid-talk:** while reading on-device, **Aa** → Speech engine → Browser speech service (on Wi-Fi), then back. Position is kept and listening continues.
 
 ### Desktop Chrome (Linux/Windows/macOS) with a USB or built-in mic
 
@@ -155,5 +165,5 @@ Run before relying on a new version for a real talk. Each item names the SPEC §
 
 ### Any browser
 
-- [ ] Firefox: Voice mode is hidden, a note says why, and Timed/Manual work.
+- [ ] Firefox: without the model, Voice mode is hidden, a note says why, and Timed/Manual work. After **Download model**, Voice works on-device.
 - [ ] Automated checks pass: `npm run check` (CI runs the same on every push; §13: all unit and noise-harness tests pass in CI).

@@ -5,3 +5,15 @@ coverage/
 .DS_Store
 .vite/
 .vscode/
+.cache/
+public/models/
+proto/offline-asr/node_modules
+proto/offline-asr/tools.mjs
+proto/offline-asr/timeline.mjs
+proto/offline-asr/vosk.js
+proto/offline-asr/*.tar.gz
+proto/offline-asr/*.zip
+proto/offline-asr/vosk-model-*/
+proto/offline-asr/zf/
+proto/offline-asr/audio/
+proto/offline-asr/runs/

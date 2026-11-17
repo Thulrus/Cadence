@@ -1,0 +1,50 @@
+<!doctype html><meta charset="utf-8" />
+<script>
+  async function loadWav(url) {
+    const buf = await (await fetch(url)).arrayBuffer();
+    const dv = new DataView(buf);
+    let off = 12;
+    while (off < dv.byteLength) {
+      const id = String.fromCharCode(...new Uint8Array(buf, off, 4));
+      const size = dv.getUint32(off + 4, true);
+      if (id === 'data') {
+        const n = size / 2,
+          out = new Float32Array(n);
+        for (let i = 0; i < n; i++) out[i] = dv.getInt16(off + 8 + i * 2, true) / 32768;
+        return out;
+      }
+      off += 8 + size;
+    }
+  }
+  let w;
+  window.loadModel = (cfg) =>
+    new Promise((r) => {
+      w = new Worker('sherpa-worker.js', { type: 'module' });
+      w.onmessage = (e) => r(e.data.ms);
+      w.postMessage({ type: 'load', cfg });
+    });
+  window.run = async (wavUrl, mode, chunkMs = 100) => {
+    const samples = await loadWav(wavUrl);
+    const rate = 16000;
+    const events = [];
+    let done;
+    const fin = new Promise((r) => (done = r));
+    w.onmessage = (e) => {
+      if (e.data.type === 'ev') events.push(e.data.ev);
+      else if (e.data.type === 'done') done(e.data.busy);
+    };
+    const t0 = performance.now();
+    w.postMessage({ type: 'begin', t0: performance.timeOrigin + t0 });
+    const chunk = Math.round((rate * chunkMs) / 1000);
+    for (let i = 0, k = 0; i < samples.length; i += chunk, k++) {
+      if (mode === 'realtime') {
+        const wait = t0 + k * chunkMs - performance.now();
+        if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+      }
+      w.postMessage({ type: 'chunk', samples: samples.slice(i, i + chunk) });
+    }
+    w.postMessage({ type: 'end' });
+    const busy = await fin;
+    return { total: performance.now() - t0, busy, audioMs: (samples.length / rate) * 1000, events };
+  };
+</script>

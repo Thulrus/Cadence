@@ -3,6 +3,7 @@ import {
   CAPABILITY_MESSAGES,
   detectCapabilities,
   meterEnabled,
+  offlineCapable,
   resolveEngine,
   type CapabilityEnv,
 } from './capabilities';
@@ -17,6 +18,7 @@ const env = (o: Partial<CapabilityEnv>): CapabilityEnv => ({
   hasSpeechRecognition: true,
   isSecureContext: true,
   hasGetUserMedia: true,
+  hasAudioWorklet: true,
   userAgent: CHROME_ANDROID,
   maxTouchPoints: 5,
   ...o,
@@ -70,8 +72,57 @@ describe('capabilities', () => {
     expect(resolveEngine('auto', caps, prod).note).toBe(CAPABILITY_MESSAGES.ios);
     expect(resolveEngine('offline', detectCapabilities(env({})), prod)).toEqual({
       engine: 'webspeech',
-      note: CAPABILITY_MESSAGES.offlineLater,
+      note: CAPABILITY_MESSAGES.offlineMissing,
     });
+  });
+});
+
+describe('on-device engine selection', () => {
+  const ready = { ...prod, offlineReady: true };
+  const chrome = detectCapabilities(env({}));
+  const firefox = detectCapabilities(
+    env({ userAgent: FIREFOX, hasSpeechRecognition: false, maxTouchPoints: 0 }),
+  );
+
+  it('auto prefers on-device once the model is installed', () => {
+    expect(resolveEngine('auto', chrome, ready)).toEqual({ engine: 'offline' });
+    expect(resolveEngine('auto', chrome, prod)).toEqual({ engine: 'webspeech' });
+  });
+
+  it('explicit choices win where both work', () => {
+    expect(resolveEngine('offline', chrome, ready)).toEqual({ engine: 'offline' });
+    expect(resolveEngine('webspeech', chrome, ready)).toEqual({ engine: 'webspeech' });
+  });
+
+  it('gives Firefox voice following once the model is installed', () => {
+    expect(resolveEngine('auto', firefox, ready)).toEqual({ engine: 'offline' });
+    expect(resolveEngine('webspeech', firefox, ready)).toEqual({ engine: 'offline' });
+    expect(resolveEngine('auto', firefox, prod)).toEqual({
+      engine: 'none',
+      note: CAPABILITY_MESSAGES.firefox,
+    });
+  });
+
+  it('needs a secure context, getUserMedia and AudioWorklet', () => {
+    for (const e of [
+      { isSecureContext: false },
+      { hasGetUserMedia: false },
+      { hasAudioWorklet: false },
+    ]) {
+      const caps = detectCapabilities(env(e));
+      expect(offlineCapable(caps)).toBe(false);
+      expect(resolveEngine('auto', caps, ready).engine).not.toBe('offline');
+    }
+    expect(
+      resolveEngine('offline', detectCapabilities(env({ hasAudioWorklet: false })), ready),
+    ).toEqual({
+      engine: 'webspeech',
+      note: CAPABILITY_MESSAGES.offlineUnsupported,
+    });
+  });
+
+  it('?sim still wins', () => {
+    expect(resolveEngine('offline', chrome, { ...ready, forceSim: true }).engine).toBe('simulated');
   });
 });
 

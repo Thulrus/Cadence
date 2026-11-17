@@ -1,3 +1,5 @@
+import { ModelStore } from './engines/offline/model';
+import { disposeVoskModel, warmVoskRuntime } from './engines/offline/vosk';
 import { openScriptStore, type ScriptStore } from './storage/scripts';
 import { SettingsStore, memoryStorage, type StorageAdapter } from './storage/settings';
 import { applyAppearance } from './ui/appearance';
@@ -5,6 +7,7 @@ import { button, h } from './ui/components/dom';
 import { navBar } from './ui/components/nav';
 import { createErrorReporter, errorMessage, installGlobalErrorHandler } from './ui/errors';
 import { createNotices, type Notices } from './ui/components/notice';
+import { OfflineModelService } from './ui/offline';
 import { Router, parseRoute } from './ui/router';
 import { createUpdateBanner, type UpdateBanner } from './ui/update';
 import type { ViewDeps } from './ui/views/deps';
@@ -74,10 +77,25 @@ export async function createApp(
     );
   }
 
+  const idb = browserIndexedDb();
+  const modelStore =
+    idb && globalThis.crypto?.subtle
+      ? new ModelStore({
+          baseUrl: new URL(`${import.meta.env.BASE_URL}models/`, location.href).href,
+          fetch: (input, init) => fetch(input, init),
+          indexedDB: idb,
+          subtle: crypto.subtle,
+          storage: navigator.storage,
+        })
+      : null;
+  const offline = new OfflineModelService(modelStore, settings, disposeVoskModel, warmVoskRuntime);
+  void offline.refresh();
+
   const deps: ViewDeps = {
     scripts,
     settings,
     notices,
+    offline,
     navigate: (route) => router.navigate(route),
   };
   const router: Router = new Router(

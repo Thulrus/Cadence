@@ -3,6 +3,8 @@
 **Milestone:** M4 (ends milestone) · **Depends on:** 17 (and the owner's sign-off on its recommendation)
 
 > Chunk 17 may revise this brief based on the chosen engine. Read `docs/decisions/0001-offline-asr.md` first; where it conflicts with this file, the decision record wins.
+>
+> **Done together with chunk 17 (2026-11-17).** Deviations from this brief, per the decision record: `auto` prefers on-device when the model is installed (not Web Speech first); the model lives in vosk-browser's own IndexedDB file system rather than Cache Storage; the runtime is precached but the model is not; no COOP/COEP needed.
 
 ## Goal
 

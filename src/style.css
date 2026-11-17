@@ -140,3 +140,206 @@ body {
 h1 {
   color: var(--heading);
 }
+
+/* ---- App chrome: notices + view host (chunk 03) ---- */
+.view-host {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.notices {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.notice {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  justify-content: space-between;
+  padding: 0.5rem 1rem;
+  background: var(--chrome-bg);
+  color: var(--chrome-fg);
+  border-bottom: 2px solid var(--accent);
+}
+
+.notice-warning {
+  border-bottom-color: var(--heading);
+}
+
+.notice-error {
+  border-bottom-color: #e5484d;
+}
+
+/* ---- Buttons & inputs ---- */
+.btn {
+  font: inherit;
+  min-height: 48px;
+  padding: 0.5rem 1rem;
+  border-radius: 0.4rem;
+  border: 1px solid var(--chrome-border);
+  background: var(--chrome-bg);
+  color: var(--chrome-fg);
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+}
+
+.btn:hover:not(:disabled),
+.btn:focus-visible {
+  outline: 2px solid var(--accent);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--bg);
+  font-weight: 600;
+}
+
+.btn-danger {
+  border-color: #e5484d;
+}
+
+input[type='text'],
+textarea {
+  font: inherit;
+  color: var(--fg);
+  background: var(--chrome-bg);
+  border: 1px solid var(--chrome-border);
+  border-radius: 0.4rem;
+  padding: 0.5rem 0.75rem;
+  min-height: 48px;
+}
+
+input[type='text']:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--accent);
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-block: 1rem;
+}
+
+/* Drop target highlight while dragging files over a view. */
+.view.drop-active {
+  outline: 4px dashed var(--accent);
+  outline-offset: -8px;
+}
+
+/* ---- Library ---- */
+.script-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.script-row {
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--chrome-border);
+  border-radius: 0.5rem;
+  background: var(--chrome-bg);
+  color: var(--chrome-fg);
+}
+
+.script-title {
+  margin: 0;
+  font-size: 1.4em;
+  color: var(--chrome-fg);
+  overflow-wrap: anywhere;
+}
+
+.script-meta {
+  margin: 0.25rem 0 0.75rem;
+  opacity: 0.8;
+}
+
+.row-actions,
+.rename {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.rename-input {
+  flex: 1 1 16rem;
+}
+
+.empty {
+  padding: 2rem 1rem;
+  text-align: center;
+  opacity: 0.85;
+}
+
+/* ---- Editor ---- */
+.view-editor {
+  display: flex;
+  flex-direction: column;
+}
+
+.editor-title {
+  flex: 1 1 16rem;
+  font-size: 1.2em;
+}
+
+.editor-text {
+  flex: 1;
+  min-height: 12rem;
+  resize: none;
+  line-height: 1.5;
+}
+
+.editor-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.editor-stats {
+  margin: 0.5rem 0;
+}
+
+.save-status {
+  opacity: 0.75;
+}
+
+.cheat-sheet {
+  margin-block: 0.5rem;
+}
+
+.cheat-sheet summary {
+  cursor: pointer;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+}
+
+.cheat-sheet dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.25rem 1rem;
+  margin: 0;
+}
+
+.cheat-sheet dd {
+  margin: 0;
+}

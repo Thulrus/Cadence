@@ -22,13 +22,13 @@ src/
   core/                 PURE TypeScript. No DOM, no browser globals, no storage. Fully unit-tested.
     emitter.ts          Typed event emitter (exists)
     types.ts            Cross-module contracts (exists): RecognitionEvent, RecognizerEngine, PositionChange
-    text/               parse.ts (markup), normalize.ts, numbers.ts, scripture.ts, index.ts (ScriptIndex builder)
+    text/               parse.ts (markup), normalize.ts, stats.ts (word count, duration), numbers.ts, scripture.ts, index.ts (ScriptIndex builder)
     align/              similarity.ts, phonetic.ts, weights.ts, score.ts, aligner.ts, config.ts
     position/           controller.ts (PositionController)
     timing/             timed.ts (timed scroll), pace.ts (elapsed/target pace math)
   engines/              webspeech.ts, simulated.ts, offline/ (M4). Implement RecognizerEngine.
   storage/              scripts.ts (ScriptStore, IndexedDB), settings.ts (SettingsStore, localStorage)
-  ui/                   DOM code: views/ (library, editor, prompter, settings), components/, scroll.ts
+  ui/                   DOM code: views/ (library, editor, prompter, settings; deps.ts = ViewDeps), components/ (dom, nav, notice), files.ts, autosave.ts, scroll.ts
   app.ts                Composition root: builds stores, engines, controller, views; wires them.
   main.ts               Entry: imports CSS, calls app.
 test/

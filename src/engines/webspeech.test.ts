@@ -257,6 +257,16 @@ describe('WebSpeechEngine', () => {
     expect(t.rec().started).toBe(true);
   });
 
+  it('gives up with an error after repeated launch failures', async () => {
+    const t = setup();
+    FakeRecognition.throwOnStart = true;
+    await t.engine.start();
+    for (let i = 0; i < WEBSPEECH_CONFIG.launchMaxRetries; i++) t.fire();
+    expect(t.timers).toHaveLength(0);
+    expect(t.statuses.at(-1)).toBe('error');
+    expect(t.engine.isRunning).toBe(false);
+  });
+
   it('starts/stops the meter and forwards levels', async () => {
     const calls: string[] = [];
     const meter: LevelMeter = {

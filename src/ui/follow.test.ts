@@ -6,7 +6,14 @@ import { buildScriptIndex } from '../core/text/index';
 import { normalizeText } from '../core/text/normalize';
 import { parseScript } from '../core/text/parse';
 import type { RecognizerEngine, RecognizerEngineEvents } from '../core/types';
-import { jumpMessage, linesBetween, statusBadge, TimingStats, VoiceFollowSession } from './follow';
+import {
+  jumpMessage,
+  linesBetween,
+  statusAnnouncement,
+  statusBadge,
+  TimingStats,
+  VoiceFollowSession,
+} from './follow';
 
 const PARA = (n: number) =>
   `Paragraph ${n} talks about the garden behind house number ${n}. ` +
@@ -171,5 +178,53 @@ describe('statusBadge', () => {
     expect(statusBadge('error', false, 'No microphone available').label).toBe(
       'No microphone available',
     );
+  });
+});
+
+describe('VoiceFollowSession failure handling', () => {
+  it('turns an engine start rejection into failed + error status', async () => {
+    const { engine, session } = setup();
+    engine.start = async () => {
+      throw new Error('mic exploded');
+    };
+    const failed: string[] = [];
+    const statuses: string[] = [];
+    session.events.on('failed', (f) => failed.push(f.message));
+    session.events.on('status', (s) => statuses.push(s.status));
+    await expect(session.start()).resolves.toBeUndefined();
+    expect(failed).toEqual(['mic exploded']);
+    expect(statuses).toContain('error');
+  });
+
+  it('stops the engine when handling a result throws, without propagating', () => {
+    const { engine, session } = setup();
+    session.aligner.feed = () => {
+      throw new Error('bad state');
+    };
+    const failed: string[] = [];
+    session.events.on('failed', (f) => failed.push(f.message));
+    expect(() => engine.say('paragraph one talks')).not.toThrow();
+    expect(failed).toEqual(['bad state']);
+    expect(engine.stopped).toBeGreaterThan(0);
+  });
+});
+
+describe('statusAnnouncement', () => {
+  it('announces real changes once and stays quiet through recognizer restarts', () => {
+    const seq = [
+      statusBadge('listening', false),
+      statusBadge('restarting', false),
+      statusBadge('listening', false),
+      statusBadge('listening', true),
+      statusBadge('listening', false),
+      statusBadge('paused', false),
+    ];
+    let last: string | null = null;
+    const spoken: string[] = [];
+    for (const b of seq) {
+      const a = statusAnnouncement(last, b);
+      if (a) spoken.push((last = a));
+    }
+    expect(spoken).toEqual(['Listening', 'Lost. Tap a word to resync.', 'Listening', 'Paused']);
   });
 });

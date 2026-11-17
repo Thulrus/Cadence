@@ -1,4 +1,5 @@
 import { estimateDurationSec, formatDuration, spokenWordCount } from '../../core/text/stats';
+import { missingSamples } from '../../samples';
 import type { ScriptRecord } from '../../storage/scripts';
 import { button, h } from '../components/dom';
 import { navBar } from '../components/nav';
@@ -32,6 +33,18 @@ export function createLibraryView(deps: ViewDeps): View {
   const open = async (r: ScriptRecord) => {
     await attempt(deps, () => scripts.markOpened(r.id));
     navigate({ name: 'prompter', id: r.id });
+  };
+
+  /** Add the bundled sample scripts that aren't already in the library. */
+  const addSamples = async () => {
+    const todo = missingSamples(scripts.list());
+    if (!todo.length) {
+      deps.notices.show('The sample scripts are already in your library.');
+      return;
+    }
+    // Reverse: the library lists newest first, so the first sample (the talk) ends up on top.
+    for (const s of [...todo].reverse()) await attempt(deps, () => scripts.create(s));
+    deps.notices.show(`Added ${todo.length} sample script${todo.length === 1 ? '' : 's'}.`);
   };
 
   const setMode = (m: RowMode) => {
@@ -125,6 +138,12 @@ export function createLibraryView(deps: ViewDeps): View {
         'Choose “New script” and paste your text, use “Load file” to open a .txt or .md file, ' +
           'or drag a file onto this page.',
       ),
+      h(
+        'p',
+        {},
+        'Want to try it first? ',
+        button('Add sample scripts', () => void addSamples(), 'primary'),
+      ),
     );
   }
 
@@ -149,6 +168,7 @@ export function createLibraryView(deps: ViewDeps): View {
         button('Import backup', async () => {
           await importFiles(deps, await pickFiles(BACKUP_ACCEPT));
         }),
+        button('Add sample scripts', () => void addSamples()),
       );
       root = h(
         'section',

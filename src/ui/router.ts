@@ -46,6 +46,8 @@ export class Router {
   constructor(
     private readonly container: HTMLElement,
     private readonly views: ViewMap,
+    /** A view whose mount throws is replaced by this fallback instead of a blank screen. */
+    private readonly onMountError?: (error: unknown, route: Route) => HTMLElement,
   ) {}
 
   start(): void {
@@ -74,7 +76,18 @@ export class Router {
     this.current?.unmount();
     this.container.replaceChildren();
     this.currentRoute = route;
-    this.current = this.views[route.name]();
-    this.current.mount(this.container, route);
+    try {
+      this.current = this.views[route.name]();
+      this.current.mount(this.container, route);
+    } catch (e) {
+      if (!this.onMountError) throw e;
+      try {
+        this.current?.unmount();
+      } catch {
+        // Half-mounted view; nothing more to clean up safely.
+      }
+      this.current = null;
+      this.container.replaceChildren(this.onMountError(e, route));
+    }
   }
 }

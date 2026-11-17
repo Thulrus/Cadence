@@ -34,6 +34,8 @@ export const WEBSPEECH_CONFIG = {
   restartMaxMs: 2000,
   /** Consecutive `audio-capture` errors (no mic / mic busy) before giving up. */
   audioCaptureMaxRetries: 3,
+  /** Consecutive launches that throw (constructor or start()) before giving up. */
+  launchMaxRetries: 3,
   maxAlternatives: 1,
 } as const;
 
@@ -148,6 +150,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   'language-not-supported': 'This language is not supported by the speech service',
   'service-not-allowed': 'Speech service not allowed',
   'not-allowed': 'Microphone permission denied',
+  launch: 'Speech recognition could not start',
 };
 
 // ---- engine ----
@@ -183,6 +186,7 @@ export class WebSpeechEngine implements RecognizerEngine {
   private halted = false;
   private restarts = 0;
   private audioCaptureErrors = 0;
+  private launchErrors = 0;
   private resultStart = 0;
   private timer: unknown = null;
   private status: EngineStatus = 'idle';
@@ -212,6 +216,7 @@ export class WebSpeechEngine implements RecognizerEngine {
     this.halted = false;
     this.restarts = 0;
     this.audioCaptureErrors = 0;
+    this.launchErrors = 0;
     this.setStatus('starting');
     this.launch();
     // After launch(): recognition.start() must run synchronously inside the gesture.
@@ -240,7 +245,13 @@ export class WebSpeechEngine implements RecognizerEngine {
   private launch(): void {
     this.timer = null;
     if (!this.wanted || this.halted) return;
-    const rec = new this.deps.Recognition();
+    let rec: SpeechRecognitionLike;
+    try {
+      rec = new this.deps.Recognition();
+    } catch (e) {
+      this.onLaunchError(e);
+      return;
+    }
     rec.continuous = true;
     rec.interimResults = true;
     rec.maxAlternatives = WEBSPEECH_CONFIG.maxAlternatives;
@@ -275,10 +286,20 @@ export class WebSpeechEngine implements RecognizerEngine {
     this.resultStart = 0;
     try {
       rec.start();
-    } catch {
-      // InvalidStateError etc.: treat like an immediate end.
-      this.onEnd();
+      this.launchErrors = 0;
+    } catch (e) {
+      // InvalidStateError etc.: treat like an immediate end, but not forever.
+      this.onLaunchError(e);
     }
+  }
+
+  private onLaunchError(e: unknown): void {
+    this.deps.debug?.(`launch failed: ${String(e)}`);
+    if (++this.launchErrors > WEBSPEECH_CONFIG.launchMaxRetries) {
+      this.halt('error', ERROR_MESSAGES.launch);
+      return;
+    }
+    this.onEnd();
   }
 
   private onResult(ev: SpeechResultEventLike): void {

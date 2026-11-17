@@ -32,7 +32,14 @@ import { actionForKey, isTypingTarget } from '../keys';
 import { canAutoHide, nearEdge, RunController, type RunDriver } from '../run';
 import { createSimPanel, DEVSIM_CONFIG, simEnabled } from '../devsim';
 import { browserEnv, detectCapabilities, meterEnabled, resolveEngine } from '../capabilities';
-import { jumpMessage, linesBetween, statusBadge, TimingStats, VoiceFollowSession } from '../follow';
+import {
+  jumpMessage,
+  linesBetween,
+  statusAnnouncement,
+  statusBadge,
+  TimingStats,
+  VoiceFollowSession,
+} from '../follow';
 import { routeHash, type Route, type View } from '../router';
 import {
   GESTURE_CONFIG,
@@ -46,6 +53,9 @@ import {
 import { cursorForPosition, spokenDelta } from '../wordstate';
 import { attempt, type ViewDeps } from './deps';
 import { RUN_MODE_LABELS } from './settings';
+
+const VOICE_FAILED_MESSAGE =
+  'Voice following hit a problem and stopped. Manual and timed modes still work; switch back to Voice and tap Start to try again.';
 
 export const PROMPTER_CONFIG = {
   /** Two words are on the same visual line if their tops differ by less than this × height. */
@@ -216,7 +226,11 @@ export function createPrompterView(deps: ViewDeps): View {
         { className: 'follow-lost', hidden: true },
         'Lost — tap a word to resync',
       );
-      lostBadge.setAttribute('role', 'status');
+      // Not a live region: status changes are spoken by `srStatus` (statusAnnouncement), so
+      // the recognizer's frequent restarts aren't announced.
+      const srStatus = h('span', { className: 'sr-only' });
+      srStatus.setAttribute('aria-live', 'polite');
+      let lastSpoken: string | null = null;
       // Everything that floats over the text lives in stageArea. The bar overlays its top
       // (CSS --bar-off), so auto-hiding the bar never resizes the stage.
       const stageArea = h(
@@ -227,13 +241,15 @@ export function createPrompterView(deps: ViewDeps): View {
         resume,
         toast,
         lostBadge,
+        srStatus,
       );
       const timerClock = h('span', { className: 'run-timer-clock' }, '0:00');
       const timerPace = h('span', { className: 'run-timer-pace' });
       const timerEl = h('div', { className: 'run-timer' }, timerClock, timerPace);
       timerEl.setAttribute('aria-label', 'Elapsed time');
       stageArea.append(timerEl);
-      const view = h('section', { className: 'view-prompter' }, stageArea, bar);
+      // Bar first in the DOM so keyboard focus starts at the controls (it's an absolute overlay).
+      const view = h('section', { className: 'view-prompter' }, bar, stageArea);
       root = view;
       container.append(view);
       const barRo = new ResizeObserver(() =>
@@ -543,12 +559,18 @@ export function createPrompterView(deps: ViewDeps): View {
                 },
               })
             : null;
-          engine = new WebSpeechEngine({
-            Recognition,
-            lang: () => deps.settings.get().engine.lang,
-            meter,
-            debug: debugLog?.log,
-          });
+          try {
+            engine = new WebSpeechEngine({
+              Recognition,
+              lang: () => deps.settings.get().engine.lang,
+              meter,
+              debug: debugLog?.log,
+            });
+          } catch (e) {
+            // Engine couldn't be built: the prompter still works in timed/manual mode.
+            console.error('[cadence] speech engine unavailable:', e);
+            deps.notices.show(VOICE_FAILED_MESSAGE, 'warning');
+          }
         }
       } else if (resolved.engine === 'simulated') {
         const sim = new SimulatedEngine();
@@ -561,7 +583,6 @@ export function createPrompterView(deps: ViewDeps): View {
 
       // Bar controls: status badge, level meter, Start/Pause listening.
       const badge = h('span', { className: 'listen-badge', hidden: !engine });
-      badge.setAttribute('role', 'status');
       const meterFill = h('span', { className: 'listen-meter-fill' });
       const meterEl = h('span', { className: 'listen-meter', hidden: true }, meterFill);
       meterEl.setAttribute('aria-hidden', 'true');
@@ -579,6 +600,8 @@ export function createPrompterView(deps: ViewDeps): View {
         meterEl.hidden = !(meterOn && b.active);
         if (!b.active) meterFill.style.transform = 'scaleX(0)';
         lostBadge.hidden = !(lost && b.active);
+        const say = statusAnnouncement(lastSpoken, b);
+        if (say && engine) srStatus.textContent = lastSpoken = say;
       }
 
       // One-time privacy notice before the first Web Speech start.
@@ -643,6 +666,11 @@ export function createPrompterView(deps: ViewDeps): View {
               'warning',
             );
           }
+        });
+        session.events.on('failed', () => {
+          deps.notices.show(VOICE_FAILED_MESSAGE, 'warning');
+          // Fall back to manual for this run; the stored mode stays Voice for next time.
+          if (run.mode === 'voice') run.setMode('manual');
         });
         session.events.on('lost', renderStatus);
         session.events.on('level', (l) => {

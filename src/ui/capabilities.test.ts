@@ -50,8 +50,10 @@ describe('capabilities', () => {
     const caps = detectCapabilities(env({ userAgent: FIREFOX, hasSpeechRecognition: false }));
     expect(resolveEngine('auto', caps, prod)).toEqual({
       engine: 'none',
-      note: CAPABILITY_MESSAGES.unsupported,
+      note: CAPABILITY_MESSAGES.firefox,
     });
+    const other = detectCapabilities(env({ hasSpeechRecognition: false }));
+    expect(resolveEngine('auto', other, prod).note).toBe(CAPABILITY_MESSAGES.unsupported);
     expect(resolveEngine('auto', caps, { dev: true, forceSim: false }).engine).toBe('simulated');
   });
 
@@ -71,6 +73,39 @@ describe('capabilities', () => {
       note: CAPABILITY_MESSAGES.offlineLater,
     });
   });
+});
+
+describe('per-browser messaging (SPEC §2)', () => {
+  const IPHONE =
+    'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1';
+  const CHROME_DESKTOP =
+    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36';
+  const cases: [string, Partial<CapabilityEnv>, string, string | undefined][] = [
+    ['Chrome desktop', { userAgent: CHROME_DESKTOP, maxTouchPoints: 0 }, 'webspeech', undefined],
+    ['Chrome Android', {}, 'webspeech', undefined],
+    ['Safari iPadOS', { userAgent: IPAD }, 'webspeech', CAPABILITY_MESSAGES.ios],
+    ['Safari iPhone', { userAgent: IPHONE }, 'webspeech', CAPABILITY_MESSAGES.ios],
+    [
+      'iOS without speech (home-screen app)',
+      { userAgent: IPHONE, hasSpeechRecognition: false },
+      'none',
+      CAPABILITY_MESSAGES.unsupported,
+    ],
+    [
+      'Firefox',
+      { userAgent: FIREFOX, hasSpeechRecognition: false, maxTouchPoints: 0 },
+      'none',
+      CAPABILITY_MESSAGES.firefox,
+    ],
+    ['plain http', { isSecureContext: false }, 'none', CAPABILITY_MESSAGES.insecure],
+  ];
+  for (const [name, e, engine, note] of cases) {
+    it(name, () => {
+      const r = resolveEngine('auto', detectCapabilities(env(e)), prod);
+      expect(r.engine).toBe(engine);
+      expect(r.note).toBe(note);
+    });
+  }
 });
 
 describe('meterEnabled', () => {

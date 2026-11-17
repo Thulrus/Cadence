@@ -68,7 +68,10 @@ export interface EngineResolution {
 }
 
 export const CAPABILITY_MESSAGES = {
-  unsupported: "Voice following isn't available in this browser; timed and manual modes work.",
+  unsupported:
+    "Voice following isn't available in this browser; timed and manual modes work. Use Chrome (desktop or Android) for voice.",
+  firefox:
+    "Firefox doesn't support browser speech recognition, so voice following is off; timed and manual modes work. Use Chrome for voice.",
   insecure: 'Voice following needs a secure (https) connection; timed and manual modes work.',
   ios: 'Voice following on iPhone/iPad Safari is best effort and may stop unexpectedly.',
   offlineLater: 'The offline speech engine is not available yet; using the browser speech service.',
@@ -89,7 +92,11 @@ export function resolveEngine(
   if (choice === 'offline') notes.push(CAPABILITY_MESSAGES.offlineLater);
   const voiceOk = caps.webSpeech && caps.secure;
   if (!voiceOk) {
-    const why = !caps.webSpeech ? CAPABILITY_MESSAGES.unsupported : CAPABILITY_MESSAGES.insecure;
+    const why = caps.webSpeech
+      ? CAPABILITY_MESSAGES.insecure
+      : caps.firefox
+        ? CAPABILITY_MESSAGES.firefox
+        : CAPABILITY_MESSAGES.unsupported;
     return opts.dev ? { engine: 'simulated', note: why } : { engine: 'none', note: why };
   }
   if (caps.ios) notes.push(CAPABILITY_MESSAGES.ios);

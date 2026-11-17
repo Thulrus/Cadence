@@ -7,7 +7,8 @@
  *    search window follows the reader's manual resync;
  *  - events for the view: `jump` (a large move: offer undo), `lost` (flag changed),
  *    `status` (engine status passthrough), `timing` (ms spent handling one result, for the
- *    dev-only perf log).
+ *    dev-only perf log), `failed` (the engine or aligner threw: voice following stopped, the
+ *    view falls back to manual so the prompter keeps working).
  *
  * Detached following needs nothing here: the controller keeps the position (and the renderer
  * keeps the highlight) updating while `following` is false; only scrolling stops.
@@ -25,6 +26,7 @@ export interface VoiceFollowEvents extends Record<string, unknown> {
   status: { status: EngineStatus; message?: string };
   level: number;
   timing: { ms: number; result: AlignResult | null };
+  failed: { message: string };
 }
 
 export class VoiceFollowSession {
@@ -32,6 +34,8 @@ export class VoiceFollowSession {
   readonly aligner: Aligner;
   private lost = false;
   private applying = false;
+  /** Set by `fail()`; results are ignored until the next `start()`. */
+  private failed = false;
   private readonly offs: (() => void)[] = [];
 
   constructor(
@@ -57,12 +61,22 @@ export class VoiceFollowSession {
     return this.lost;
   }
 
-  start(): Promise<void> {
-    return this.engine.start();
+  /** Start the engine. Never rejects: a throw or rejection becomes a `failed` event. */
+  async start(): Promise<void> {
+    this.failed = false;
+    try {
+      await this.engine.start();
+    } catch (e) {
+      this.fail(e);
+    }
   }
 
   stop(): void {
-    this.engine.stop();
+    try {
+      this.engine.stop();
+    } catch (e) {
+      console.error('[cadence] engine stop failed:', e);
+    }
   }
 
   setConfig(config: AlignConfig): void {
@@ -82,11 +96,29 @@ export class VoiceFollowSession {
 
   destroy(): void {
     for (const off of this.offs.splice(0)) off();
-    this.engine.stop();
+    this.stop();
     this.events.clear();
   }
 
   private onResult(ev: RecognitionEvent): void {
+    if (this.failed) return;
+    try {
+      this.handleResult(ev);
+    } catch (e) {
+      this.fail(e);
+    }
+  }
+
+  private fail(e: unknown): void {
+    if (this.failed) return;
+    this.failed = true;
+    console.error('[cadence] voice following failed:', e);
+    this.stop();
+    this.events.emit('status', { status: 'error', message: 'Voice stopped' });
+    this.events.emit('failed', { message: e instanceof Error ? e.message : String(e) });
+  }
+
+  private handleResult(ev: RecognitionEvent): void {
     const t0 = this.now();
     const r = this.aligner.feed(ev);
     if (r?.moved) {
@@ -167,4 +199,15 @@ export function statusBadge(status: EngineStatus, lost: boolean, message?: strin
     case 'paused':
       return { label: 'Paused', state: 'paused', active: false };
   }
+}
+
+/**
+ * What the screen-reader status region should say for a badge change, or null to stay quiet.
+ * Polite, not chatty: Web Speech restarts every few seconds, so `restarting` (and returning to
+ * the state already announced) is never spoken. Lost adds the resync hint.
+ */
+export function statusAnnouncement(lastSpoken: string | null, b: StatusBadge): string | null {
+  if (b.state === 'restarting') return null;
+  const text = b.state === 'lost' ? 'Lost. Tap a word to resync.' : b.label;
+  return text === lastSpoken ? null : text;
 }

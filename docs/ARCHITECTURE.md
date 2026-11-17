@@ -28,12 +28,12 @@ src/
     timing/             words.ts (SpokenWords: display-word counting), timed.ts (TimedScroller), pace.ts (pace math, RunClock, formatClock)
   engines/              webspeech.ts (+ micmeter.ts, optional level meter), simulated.ts, offline/ (M4). Implement RecognizerEngine.
                         synth/ = pure, seeded synthetic speech (plan → noise → timed events), shared by the harness and the dev simulator
+  samples/              the three sample scripts (.md, bundled with ?raw) + index.ts (SAMPLE_SCRIPTS); also the harness fixtures
   storage/              scripts.ts (ScriptStore, IndexedDB), settings.ts (SettingsStore, localStorage)
-  ui/                   DOM code: views/ (library, editor, prompter, settings; deps.ts = ViewDeps), components/ (dom, nav, notice, fields = labelled controls, quickpanel = in-run display panel), files.ts, autosave.ts, scroll.ts (ease/deadband math + rAF ScrollController), wordstate.ts (position → spoken/current word cursor), update.ts (SW update banner), follow.ts (VoiceFollowSession: engine → Aligner → PositionController; statusBadge), devsim.ts (dev simulator panel), capabilities.ts (detection, resolveEngine, meterEnabled), debuglog.ts (`?debug` on-screen recognizer log), run.ts (RunController: mode + pause/resume + clock; auto-hide helpers), keys.ts (pure keymap), device.ts (fullscreen, WakeLockKeeper)
+  ui/                   DOM code: views/ (library, editor, prompter, settings; deps.ts = ViewDeps), components/ (dom, nav, notice, fields = labelled controls, quickpanel = in-run display panel), files.ts, autosave.ts, scroll.ts (ease/deadband math + rAF ScrollController), wordstate.ts (position → spoken/current word cursor), update.ts (SW update banner), follow.ts (VoiceFollowSession: engine → Aligner → PositionController; statusBadge), devsim.ts (dev simulator panel), capabilities.ts (detection, resolveEngine, meterEnabled), debuglog.ts (`?debug` on-screen recognizer log), run.ts (RunController: mode + pause/resume + clock; auto-hide helpers), keys.ts (pure keymap), device.ts (fullscreen, WakeLockKeeper), errors.ts (global error notices), contrast.test.ts (theme contrast check over style.css)
   app.ts                Composition root: builds stores, engines, controller, views; wires them.
   main.ts               Entry: imports CSS, calls app, registers the service worker (vite-plugin-pwa).
 test/
-  fixtures/             sample scripts, transcripts
   harness/              ASR-noise harness: run.ts (metrics), scenarios.ts, one *.test.ts per sample script, sweep.test.ts (tuning tool)
 public/                 static assets (icon SVGs + committed PNGs from scripts/gen-icons.sh)
 ```

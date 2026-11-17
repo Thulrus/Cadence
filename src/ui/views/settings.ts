@@ -1,3 +1,4 @@
+import { browserEnv, detectCapabilities, resolveEngine } from '../capabilities';
 import { ALIGN_DEFAULTS, ALIGN_TUNING, resolveConfig } from '../../core/align/config';
 import {
   ENGINE_CHOICES,
@@ -317,6 +318,20 @@ function preview(): HTMLElement {
   );
 }
 
+/** Persistent explanation when voice following can't run in this browser (or is limited). */
+function voiceSupportNote(): HTMLElement | null {
+  const r = resolveEngine('auto', detectCapabilities(browserEnv()), {
+    dev: false,
+    forceSim: false,
+  });
+  if (!r.note) return null;
+  return h(
+    'p',
+    { className: `field-hint support-note${r.engine === 'none' ? ' support-none' : ''}` },
+    r.note,
+  );
+}
+
 /** Settings view: Appearance, Run, Speech engine, Advanced (aligner tuning). */
 export function createSettingsView(deps: ViewDeps): View {
   let root: HTMLElement | null = null;
@@ -379,6 +394,7 @@ export function createSettingsView(deps: ViewDeps): View {
             { className: 'field-hint' },
             'With the browser speech service (Chrome), microphone audio is sent to Google to be transcribed and needs an internet connection. Changes apply the next time listening starts.',
           ),
+          voiceSupportNote(),
           h('div', { className: 'fields' }, ...engine.map((f) => f.el)),
         ),
         h(

@@ -1,7 +1,9 @@
 import { openScriptStore, type ScriptStore } from './storage/scripts';
 import { SettingsStore, memoryStorage, type StorageAdapter } from './storage/settings';
 import { applyAppearance } from './ui/appearance';
-import { h } from './ui/components/dom';
+import { button, h } from './ui/components/dom';
+import { navBar } from './ui/components/nav';
+import { createErrorReporter, errorMessage, installGlobalErrorHandler } from './ui/errors';
 import { createNotices, type Notices } from './ui/components/notice';
 import { Router, parseRoute } from './ui/router';
 import { createUpdateBanner, type UpdateBanner } from './ui/update';
@@ -60,6 +62,7 @@ export async function createApp(
   const updates = createUpdateBanner(() => parseRoute(location.hash).name, applyUpdate);
   window.addEventListener('hashchange', () => updates.refresh());
   container.replaceChildren(updates.el, notices.el, viewHost);
+  installGlobalErrorHandler(window, createErrorReporter({ show: (m) => notices.show(m, 'error') }));
 
   const scripts = await openScriptStore(browserIndexedDb());
   if (!scripts.persistent) {
@@ -77,12 +80,32 @@ export async function createApp(
     notices,
     navigate: (route) => router.navigate(route),
   };
-  const router: Router = new Router(viewHost, {
-    library: () => createLibraryView(deps),
-    editor: () => createEditorView(deps),
-    prompter: () => createPrompterView(deps),
-    settings: () => createSettingsView(deps),
-  });
+  const router: Router = new Router(
+    viewHost,
+    {
+      library: () => createLibraryView(deps),
+      editor: () => createEditorView(deps),
+      prompter: () => createPrompterView(deps),
+      settings: () => createSettingsView(deps),
+    },
+    (e) => {
+      console.error('[cadence] view failed to open:', e);
+      return h(
+        'section',
+        { className: 'view view-error' },
+        navBar(),
+        h('h1', {}, 'This page couldn’t be opened'),
+        h('p', {}, `Error: ${errorMessage(e)}. Your scripts are safe.`),
+        h(
+          'p',
+          {},
+          button('Back to library', () => router.navigate({ name: 'library' }), 'primary'),
+          ' ',
+          button('Reload', () => location.reload()),
+        ),
+      );
+    },
+  );
   router.start();
 
   return { settings, scripts, router, notices, updates };

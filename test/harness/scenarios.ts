@@ -3,7 +3,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { NOISE_PROFILES, type NoiseRates } from '../../src/engines/synth';
 
-const DIR = join(import.meta.dirname, '..', 'fixtures', 'scripts');
+const DIR = join(import.meta.dirname, '..', '..', 'src', 'samples');
 
 export const SCRIPTS: Record<string, string> = Object.fromEntries(
   readdirSync(DIR)

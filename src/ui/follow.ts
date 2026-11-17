@@ -137,3 +137,34 @@ export class TimingStats {
     return { n: xs.length, mean: xs.reduce((a, b) => a + b, 0) / xs.length, max: Math.max(...xs) };
   }
 }
+
+/** Status badge for the prompter (SPEC §9): engine status + aligner lost flag. */
+export interface StatusBadge {
+  label: string;
+  /** CSS state hook: `data-state` on the badge. */
+  state: 'listening' | 'paused' | 'lost' | 'restarting' | 'no-permission' | 'error';
+  /** Listening is on (the button offers "Pause"). */
+  active: boolean;
+}
+
+export function statusBadge(status: EngineStatus, lost: boolean, message?: string): StatusBadge {
+  switch (status) {
+    case 'starting':
+      return { label: 'Starting…', state: 'restarting', active: true };
+    case 'listening':
+      return lost
+        ? { label: 'Lost', state: 'lost', active: true }
+        : { label: 'Listening', state: 'listening', active: true };
+    case 'restarting':
+      return { label: 'Recognizer restarting', state: 'restarting', active: true };
+    case 'no-permission':
+      return { label: 'No mic permission', state: 'no-permission', active: false };
+    case 'unsupported':
+      return { label: 'Voice unavailable', state: 'error', active: false };
+    case 'error':
+      return { label: message ?? 'Recognizer error', state: 'error', active: false };
+    case 'idle':
+    case 'paused':
+      return { label: 'Paused', state: 'paused', active: false };
+  }
+}

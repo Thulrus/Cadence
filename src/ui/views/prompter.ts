@@ -3,13 +3,16 @@ import { PositionController } from '../../core/position/controller';
 import { buildScriptIndex, positionForWord } from '../../core/text/index';
 import { parseScript } from '../../core/text/parse';
 import type { ScriptIndex } from '../../core/text/types';
-import type { PositionChange, RecognizerEngine } from '../../core/types';
+import type { EngineStatus, PositionChange, RecognizerEngine } from '../../core/types';
+import { MicMeter } from '../../engines/micmeter';
+import { getSpeechRecognition, WebSpeechEngine } from '../../engines/webspeech';
 import { SimulatedEngine } from '../../engines/simulated';
 import type { AppearanceSettings } from '../../storage/settings';
 import { button, h } from '../components/dom';
 import { createQuickPanel } from '../components/quickpanel';
 import { createSimPanel, DEVSIM_CONFIG, simEnabled } from '../devsim';
-import { jumpMessage, linesBetween, TimingStats, VoiceFollowSession } from '../follow';
+import { browserEnv, detectCapabilities, resolveEngine } from '../capabilities';
+import { jumpMessage, linesBetween, statusBadge, TimingStats, VoiceFollowSession } from '../follow';
 import { routeHash, type Route, type View } from '../router';
 import {
   GESTURE_CONFIG,
@@ -30,6 +33,9 @@ export const PROMPTER_CONFIG = {
   bottomSpacerFraction: 1,
   /** How long the "Jumped ahead N lines — Undo" toast stays up. */
   jumpToastMs: 5000,
+  /** How long capability notes (voice unavailable, iOS caveat) stay up. */
+  noteMs: 8000,
+  privacyUrl: 'https://github.com/Thulrus/Cadence#privacy',
 } as const;
 
 const CLS = {
@@ -355,7 +361,16 @@ export function createPrompterView(deps: ViewDeps): View {
       );
 
       // ---- voice follow ----
-      const devTools = simEnabled(location.search, import.meta.env.DEV);
+      const caps = detectCapabilities(browserEnv());
+      const forceSim = simEnabled(location.search);
+      const engineSettings = deps.settings.get().engine;
+      const resolved = resolveEngine(engineSettings.choice, caps, {
+        dev: import.meta.env.DEV,
+        forceSim,
+      });
+      const devTools = import.meta.env.DEV || forceSim;
+      if (resolved.note) deps.notices.show(resolved.note, 'info', PROMPTER_CONFIG.noteMs);
+
       function startFollow(engine: RecognizerEngine): VoiceFollowSession {
         const s = new VoiceFollowSession(
           engine,
@@ -368,7 +383,6 @@ export function createPrompterView(deps: ViewDeps): View {
             jumpMessage(linesBetween(lineStarts(), previous, position), position > previous),
           ),
         );
-        s.events.on('lost', ({ lost }) => (lostBadge.hidden = !lost));
         if (devTools) {
           const stats = new TimingStats(DEVSIM_CONFIG.timingWindow);
           s.events.on('timing', ({ ms }) => {
@@ -384,16 +398,134 @@ export function createPrompterView(deps: ViewDeps): View {
         return s;
       }
 
-      if (devTools) {
-        const engine = new SimulatedEngine();
-        session = startFollow(engine);
-        const panel = createSimPanel(engine, index, () => ctl.position);
-        session.events.on('status', ({ status }) => panel.setStatus(status));
+      let engine: RecognizerEngine | null = null;
+      let meterOn = false;
+      if (resolved.engine === 'webspeech') {
+        const Recognition = getSpeechRecognition();
+        if (Recognition) {
+          meterOn = engineSettings.micMeter && caps.getUserMedia;
+          const meter = meterOn
+            ? new MicMeter({
+                onFail: (err) => {
+                  meterOn = false;
+                  meterEl.hidden = true;
+                  console.info('[cadence] mic level meter unavailable:', err);
+                },
+              })
+            : null;
+          engine = new WebSpeechEngine({
+            Recognition,
+            lang: () => deps.settings.get().engine.lang,
+            meter,
+          });
+        }
+      } else if (resolved.engine === 'simulated') {
+        const sim = new SimulatedEngine();
+        engine = sim;
+        const panel = createSimPanel(sim, index, () => ctl.position);
+        sim.events.on('status', ({ status }) => panel.setStatus(status));
         root.append(panel.el);
         cleanups.push(() => panel.destroy());
-        void session.start();
+      }
+
+      // Bar controls: status badge, level meter, Start/Pause listening.
+      const badge = h('span', { className: 'listen-badge', hidden: !engine });
+      badge.setAttribute('role', 'status');
+      const meterFill = h('span', { className: 'listen-meter-fill' });
+      const meterEl = h('span', { className: 'listen-meter', hidden: true }, meterFill);
+      meterEl.setAttribute('aria-hidden', 'true');
+      const listenBtn = button('Start listening', () => toggleListening(), 'primary', {
+        className: 'btn btn-primary listen-btn',
+        hidden: !engine,
+      });
+      bar.insertBefore(badge, quick.toggle);
+      bar.insertBefore(meterEl, quick.toggle);
+      bar.insertBefore(listenBtn, quick.toggle);
+
+      let engineStatus: { status: EngineStatus; message?: string } = { status: 'idle' };
+      function renderStatus(): void {
+        const lost = session?.isLost ?? false;
+        const b = statusBadge(engineStatus.status, lost, engineStatus.message);
+        badge.textContent = b.label;
+        badge.dataset.state = b.state;
+        badge.title = engineStatus.message ?? '';
+        listenBtn.textContent = b.active ? 'Pause listening' : 'Start listening';
+        listenBtn.setAttribute('aria-pressed', String(b.active));
+        meterEl.hidden = !(meterOn && b.active);
+        if (!b.active) meterFill.style.transform = 'scaleX(0)';
+        lostBadge.hidden = !(lost && b.active);
+      }
+
+      // One-time privacy notice before the first Web Speech start.
+      const privacy = h(
+        'div',
+        { className: 'privacy-notice', hidden: true },
+        h('h2', {}, 'Before you start'),
+        h(
+          'p',
+          {},
+          'Voice following uses your browser’s speech service. In Chrome, your microphone audio is sent to Google to be transcribed, so it needs an internet connection. Cadence itself never sends or stores audio or scripts.',
+        ),
+        h(
+          'p',
+          {},
+          h(
+            'a',
+            { href: PROMPTER_CONFIG.privacyUrl, target: '_blank', rel: 'noopener' },
+            'Privacy details (README)',
+          ),
+        ),
+        h(
+          'div',
+          { className: 'privacy-actions' },
+          button('Cancel', () => (privacy.hidden = true)),
+          button(
+            'Start listening',
+            () => {
+              privacy.hidden = true;
+              deps.settings.update({ engine: { privacyNoticeSeen: true } });
+              void session?.start();
+            },
+            'primary',
+          ),
+        ),
+      );
+      privacy.setAttribute('role', 'dialog');
+      privacy.setAttribute('aria-modal', 'true');
+      privacy.addEventListener('pointerdown', (e) => e.stopPropagation());
+      root.append(privacy);
+
+      function toggleListening(): void {
+        if (!session) return;
+        if (statusBadge(engineStatus.status, false).active) return session.stop();
+        if (engine?.id === 'webspeech' && !deps.settings.get().engine.privacyNoticeSeen) {
+          privacy.hidden = false;
+          return;
+        }
+        void session.start(); // inside the click: Web Speech needs a user gesture
+      }
+
+      if (engine) {
+        session = startFollow(engine);
+        session.events.on('status', (st) => {
+          engineStatus = st;
+          renderStatus();
+          if (st.status === 'no-permission') {
+            deps.notices.show(
+              'Microphone access was denied. Allow the microphone for this site in the browser’s site settings, then tap Start listening.',
+              'warning',
+            );
+          }
+        });
+        session.events.on('lost', renderStatus);
+        session.events.on('level', (l) => {
+          meterFill.style.transform = `scaleX(${l.toFixed(3)})`;
+        });
+        renderStatus();
         // Dev console handle: __cadenceFollow.aligner.state etc.
-        (window as unknown as { __cadenceFollow?: VoiceFollowSession }).__cadenceFollow = session;
+        if (devTools) {
+          (window as unknown as { __cadenceFollow?: VoiceFollowSession }).__cadenceFollow = session;
+        }
       }
 
       setCursor(cursorForPosition(index, ctl.position));

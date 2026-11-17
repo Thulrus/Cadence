@@ -1,6 +1,7 @@
 /**
  * Dev simulator panel (chunk 12): drive the SimulatedEngine from the prompter without a mic.
- * Shown in dev builds, or in any build with `?sim` in the page URL (before the #hash).
+ * Shown whenever the simulated engine is in use: `?sim` in the page URL (before the #hash),
+ * or a dev build without Web Speech.
  */
 import type { ScriptIndex } from '../core/text/types';
 import type { SimulatedEngine } from '../engines/simulated';
@@ -13,9 +14,11 @@ export const DEVSIM_CONFIG = {
   timingWindow: 50,
 } as const;
 
-/** `?sim`, `?sim=1`, `?x&sim` → on (`?sim=0` → off). Dev builds are always on. */
-export function simEnabled(search: string, dev: boolean): boolean {
-  if (dev) return true;
+/**
+ * `?sim`, `?sim=1`, `?x&sim` → force the simulated engine (`?sim=0` → off). Dev builds also
+ * fall back to the simulator when Web Speech is unavailable (see `resolveEngine`).
+ */
+export function simEnabled(search: string): boolean {
   const v = new URLSearchParams(search).get('sim');
   return v !== null && v !== '0' && v !== 'false';
 }

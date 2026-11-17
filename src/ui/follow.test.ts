@@ -6,7 +6,7 @@ import { buildScriptIndex } from '../core/text/index';
 import { normalizeText } from '../core/text/normalize';
 import { parseScript } from '../core/text/parse';
 import type { RecognizerEngine, RecognizerEngineEvents } from '../core/types';
-import { jumpMessage, linesBetween, TimingStats, VoiceFollowSession } from './follow';
+import { jumpMessage, linesBetween, statusBadge, TimingStats, VoiceFollowSession } from './follow';
 
 const PARA = (n: number) =>
   `Paragraph ${n} talks about the garden behind house number ${n}. ` +
@@ -147,5 +147,29 @@ describe('helpers', () => {
     expect(t.add(2)).toBeNull();
     expect(t.add(6)).toEqual({ n: 3, mean: 3, max: 6 });
     expect(t.add(1)).toBeNull();
+  });
+});
+
+describe('statusBadge', () => {
+  it('maps engine status and lost flag to the badge', () => {
+    expect(statusBadge('listening', false)).toEqual({
+      label: 'Listening',
+      state: 'listening',
+      active: true,
+    });
+    expect(statusBadge('listening', true).label).toBe('Lost');
+    expect(statusBadge('restarting', true)).toMatchObject({
+      label: 'Recognizer restarting',
+      active: true,
+    });
+    expect(statusBadge('paused', true)).toMatchObject({ label: 'Paused', active: false });
+    expect(statusBadge('idle', false).label).toBe('Paused');
+    expect(statusBadge('no-permission', false)).toMatchObject({
+      label: 'No mic permission',
+      active: false,
+    });
+    expect(statusBadge('error', false, 'No microphone available').label).toBe(
+      'No microphone available',
+    );
   });
 });

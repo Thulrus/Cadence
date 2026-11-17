@@ -15,7 +15,7 @@ Installing is optional. Open <https://thulrus.github.io/Cadence/> in Chrome (And
 ## Privacy
 
 - **Your scripts stay on your device.** They are stored in the browser (IndexedDB, settings in localStorage). There is no server, account, analytics, or third-party request. Use **Export backup** to keep a copy.
-- **Speech recognition (coming in M2):** with the Web Speech engine on Chrome, your microphone audio is sent to the browser vendor's (Google's) speech service to be transcribed. Cadence itself never sends or stores audio. An on-device offline engine that keeps everything local is planned.
+- **Speech recognition:** voice following uses the browser's Web Speech API. On Chrome your microphone audio is sent to the browser vendor's (Google's) speech service to be transcribed, so it needs an internet connection; Cadence shows a one-time notice before the first start. Cadence itself never sends or stores audio. The optional mic level meter reads the microphone locally only. An on-device offline engine that keeps everything local is planned. Browsers without Web Speech (Firefox) get manual scrolling only.
 
 ## Writing scripts
 

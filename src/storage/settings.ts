@@ -41,6 +41,10 @@ export interface RunSettings {
 export interface EngineSettings {
   choice: EngineChoice;
   lang: string;
+  /** Show the mic level meter (a second capture stream; may conflict on some devices). */
+  micMeter: boolean;
+  /** The one-time Web Speech privacy notice was acknowledged. */
+  privacyNoticeSeen: boolean;
 }
 
 export type AlignOverrides = Record<string, number | boolean>;
@@ -86,7 +90,7 @@ export const DEFAULT_SETTINGS: Readonly<Settings> = Object.freeze({
     readingLinePct: 33,
   },
   run: { mode: 'voice', timedWpm: 150, targetDurationSec: null },
-  engine: { choice: 'auto', lang: 'en-US' },
+  engine: { choice: 'auto', lang: 'en-US', micMeter: true, privacyNoticeSeen: false },
   align: {},
 } satisfies Settings);
 
@@ -161,6 +165,8 @@ function sanitizeEngine(raw: unknown, base: EngineSettings): EngineSettings {
   return {
     choice: oneOf(r.choice, ENGINE_CHOICES, base.choice),
     lang: str(r.lang, base.lang),
+    micMeter: bool(r.micMeter, base.micMeter),
+    privacyNoticeSeen: bool(r.privacyNoticeSeen, base.privacyNoticeSeen),
   };
 }
 

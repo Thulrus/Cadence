@@ -1,8 +1,11 @@
 import {
+  ENGINE_CHOICES,
   HIGHLIGHT_MODES,
   SETTINGS_LIMITS,
   THEMES,
   type AppearanceSettings,
+  type EngineChoice,
+  type EngineSettings,
   type HighlightMode,
   type SettingsStore,
   type Theme,
@@ -117,6 +120,50 @@ export function appearanceFields(settings: SettingsStore): Field[] {
   ];
 }
 
+/** Recognition languages offered (the normalizer is English-only, so English variants). */
+export const ENGINE_LANGS = [
+  { value: 'en-US', label: 'English (US)' },
+  { value: 'en-GB', label: 'English (UK)' },
+  { value: 'en-CA', label: 'English (Canada)' },
+  { value: 'en-AU', label: 'English (Australia)' },
+  { value: 'en-NZ', label: 'English (New Zealand)' },
+  { value: 'en-IE', label: 'English (Ireland)' },
+  { value: 'en-IN', label: 'English (India)' },
+  { value: 'en-ZA', label: 'English (South Africa)' },
+] as const;
+
+const ENGINE_LABELS: Record<EngineChoice, string> = {
+  auto: 'Automatic',
+  webspeech: 'Browser speech service',
+  offline: 'Offline (not available yet)',
+};
+
+/** Speech engine controls, bound to the settings store. */
+export function engineFields(settings: SettingsStore): Field[] {
+  const e = () => settings.get().engine;
+  const set = (patch: Partial<EngineSettings>) => settings.update({ engine: patch });
+  return [
+    selectField({
+      label: 'Speech engine',
+      options: ENGINE_CHOICES.map((c) => ({ value: c, label: ENGINE_LABELS[c] })),
+      get: () => e().choice,
+      set: (choice) => set({ choice: choice as EngineChoice }),
+    }),
+    selectField({
+      label: 'Language',
+      options: ENGINE_LANGS,
+      get: () => e().lang,
+      set: (lang) => set({ lang }),
+    }),
+    toggleField({
+      label: 'Mic level meter',
+      hint: 'Shows input level while listening. If voice following works badly on your device, try turning this off.',
+      get: () => e().micMeter,
+      set: (micMeter) => set({ micMeter }),
+    }),
+  ];
+}
+
 /** Sample text showing every word state, styled by the same CSS as the prompter. */
 function preview(): HTMLElement {
   const words = (cls: string, text: string) =>
@@ -159,13 +206,14 @@ function laterSection(title: string, note: string, key: string): HTMLElement {
   );
 }
 
-/** Settings view. Appearance is complete; Run, Engine and Tuning sections are filled later. */
+/** Settings view. Appearance and Engine are complete; Run and Tuning sections are filled later. */
 export function createSettingsView(deps: ViewDeps): View {
   let root: HTMLElement | null = null;
   let off: (() => void) | null = null;
   return {
     mount(container: HTMLElement) {
       const fields = appearanceFields(deps.settings);
+      const engine = engineFields(deps.settings);
       const reset = button('Reset appearance', () => deps.settings.reset('appearance'));
       root = h(
         'section',
@@ -184,7 +232,17 @@ export function createSettingsView(deps: ViewDeps): View {
           ),
         ),
         laterSection('Run', 'Run mode and timed-scroll speed arrive in a later update.', 'run'),
-        laterSection('Speech engine', 'Speech engine choice arrives in a later update.', 'engine'),
+        h(
+          'section',
+          { className: 'settings-section', dataset: { section: 'engine' } },
+          h('h2', {}, 'Speech engine'),
+          h(
+            'p',
+            { className: 'field-hint' },
+            'With the browser speech service (Chrome), microphone audio is sent to Google to be transcribed and needs an internet connection. Changes apply the next time listening starts.',
+          ),
+          h('div', { className: 'fields' }, ...engine.map((f) => f.el)),
+        ),
         laterSection(
           'Advanced / tuning',
           'Voice-follow tuning controls arrive in a later update.',
@@ -194,6 +252,7 @@ export function createSettingsView(deps: ViewDeps): View {
       container.append(root);
       off = deps.settings.on('change', ({ groups }) => {
         if (groups.includes('appearance')) for (const f of fields) f.sync();
+        if (groups.includes('engine')) for (const f of engine) f.sync();
       });
     },
     unmount() {

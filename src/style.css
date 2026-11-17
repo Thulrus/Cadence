@@ -816,3 +816,82 @@ input[type='range']:focus-visible {
 .sim-row select {
   width: auto;
 }
+
+/* ---- Listening controls (chunk 13) ---- */
+.listen-btn {
+  min-height: 48px;
+  padding-inline: 1.25rem;
+  white-space: nowrap;
+}
+
+.listen-badge {
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  border: 1px solid var(--chrome-border);
+  color: var(--chrome-fg);
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.listen-badge[data-state='listening'] {
+  border-color: #2e9e5b;
+}
+
+.listen-badge[data-state='lost'],
+.listen-badge[data-state='restarting'] {
+  border-color: #c99a2e;
+}
+
+.listen-badge[data-state='no-permission'],
+.listen-badge[data-state='error'] {
+  border-color: #c0392b;
+}
+
+.listen-meter {
+  display: inline-block;
+  width: 3rem;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: var(--chrome-border);
+  overflow: hidden;
+}
+
+.listen-meter-fill {
+  display: block;
+  height: 100%;
+  background: #2e9e5b;
+  transform-origin: left center;
+  transform: scaleX(0);
+  transition: transform 50ms linear;
+}
+
+.privacy-notice {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(32rem, calc(100% - 2rem));
+  padding: 1rem 1.25rem;
+  background: var(--chrome-bg);
+  color: var(--chrome-fg);
+  border: 1px solid var(--chrome-border);
+  border-radius: 0.75rem;
+  box-shadow: 0 0.5rem 2rem rgb(0 0 0 / 0.6);
+  z-index: 5;
+}
+
+.privacy-notice h2 {
+  margin-top: 0;
+}
+
+.privacy-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+@media (max-width: 40rem) {
+  .prompter-title {
+    display: none;
+  }
+}

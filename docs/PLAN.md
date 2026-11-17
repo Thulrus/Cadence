@@ -19,7 +19,7 @@ Milestones follow SPEC §12. Each milestone ends with `main` deployable. Some sp
 | 08  | [Weights, phonetics, token similarity](chunks/08-weights-similarity.md)             | M2        | DONE   |
 | 09  | [Aligner scoring function](chunks/09-aligner-scoring.md)                            | M2        | DONE   |
 | 10  | [Aligner state machine](chunks/10-aligner-state-machine.md)                         | M2        | DONE   |
-| 11  | [Simulated engine & ASR-noise harness](chunks/11-simulated-harness.md)              | M2        | TODO   |
+| 11  | [Simulated engine & ASR-noise harness](chunks/11-simulated-harness.md)              | M2        | DONE   |
 | 12  | [Voice-follow integration](chunks/12-voice-integration.md)                          | M2        | TODO   |
 | 13  | [Web Speech engine & status UI](chunks/13-webspeech-engine.md)                      | M2 ✅     | TODO   |
 | 14  | [Run controls, timed mode, keyboard/clicker](chunks/14-run-controls.md)             | M3        | TODO   |

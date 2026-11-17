@@ -162,7 +162,7 @@ export class Aligner {
     if (key === this.lastScoredKey) return null;
     this.lastScoredKey = key;
 
-    const near = bestCandidate(scoreWindow(tail, this.index, this.p, cfg), this.p);
+    const near = this.pickNear(scoreWindow(tail, this.index, this.p, cfg));
     if (near && isAcceptable(near, cfg, 'normal')) return this.accept(near, 'normal', final);
 
     if (cfg.allowBacktrack && tail.length >= cfg.backtrackMinTail) {
@@ -199,10 +199,30 @@ export class Aligner {
           distancePenalty: cfg.lostDistancePenaltyPerToken,
         }),
         this.p,
+        cfg.nearMargin,
+        cfg.nearSlack,
       );
       if (wide && isAcceptable(wide, cfg, 'lost')) return this.accept(wide, 'lost', final);
     }
     return null;
+  }
+
+  /**
+   * Best candidate in the normal window, with a monotonic bias: if the winner would retreat
+   * but a hold/forward candidate about as near (`nearSlack`) is within `nearMargin` of it,
+   * take that one instead (a
+   * phrase the script repeats just behind the speaker must not pull the display back).
+   */
+  private pickNear(cands: readonly Candidate[]): Candidate | null {
+    const cfg = this.config;
+    const best = bestCandidate(cands, this.p, cfg.nearMargin, cfg.nearSlack);
+    if (!best || best.q + 1 >= this.p) return best;
+    const reach = Math.abs(best.q - (this.p - 1)) + cfg.nearSlack;
+    const onward = cands.filter((c) => c.q + 1 >= this.p && c.q - (this.p - 1) <= reach);
+    const alt = bestCandidate(onward, this.p, cfg.nearMargin, cfg.nearSlack);
+    return alt && alt.score >= best.score - cfg.nearMargin && isAcceptable(alt, cfg, 'normal')
+      ? alt
+      : best;
   }
 
   private accept(c: Candidate, mode: AcceptMode, final: boolean): AlignResult | null {

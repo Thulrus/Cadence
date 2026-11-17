@@ -99,3 +99,16 @@ Entry template:
 - Gotchas for chunk 11/12: the tail is rebuilt from the full hypothesis each event (no delta trusting); `setPosition` drops earlier speech (current-utterance words heard before the resync are ignored). Lost mode widens by time: step k of `lostWidenSteps` every `lostStepMs` after `lostAfterMs`, last step = whole script. The defaults are untuned first guesses; chunk 11 should tune them with the harness. Perf tests take the best of several runs (parallel Vitest on 4 cores made single-shot timings flaky).
 - Deferred: none.
 - Human check pending: none.
+
+## Chunk 11 — Simulated engine & ASR-noise harness — DONE (2026-11-17)
+
+- Built: `engines/synth/` (pure + seeded: `plan.ts` script → spoken items with ground truth, `noise.ts` injectors + `NOISE_PROFILES`, `speak.ts` timing/utterances/cumulative interims, `simulateSpeech()`); `engines/simulated.ts` (`SimulatedEngine`: `typeWords`, `replay(events, speed)`, `emit`, `cancel`; `parseTranscript`); `test/harness/` (`run.ts` metrics, `scenarios.ts`, one test file per sample script, `sweep.test.ts` tuning tool: `V='{"a":{...}}' HARNESS_SEEDS=5 npx vitest run test/harness/sweep.test.ts`); 3 fixtures in `test/fixtures/scripts/`.
+- Deviations: speak/noise live in `src/engines/synth/` (not `test/harness/`) so the dev panel can use them; named `synth` because `engines/simulated/` would shadow `simulated.ts`. `npm test` passes `--silent=false` (Vitest's non-TTY reporter hides passing tests' logs) so the metrics table prints. Harness uses 3 seeds by default.
+- Aligner changes (found by the harness, all in `score.ts`/`aligner.ts`, documented there):
+  - DP maximized raw score but candidates compare normalized score, so a misheard prefix sank the right spot and an exact copy of a repeated phrase further on won. Now the DP maximizes `raw − prefixRatio · normalizer` (keeps an older prefix only if it matches ≥ 0.7), and a matched pair normalizes by the pair weight it earns (a fuzzy match of a word the script lacks no longer weighs 1).
+  - `bestCandidate(c, p, nearMargin, nearSlack)`: within 0.1 of the best, prefer the nearest (±4 tokens compete on score). Normal window has a monotonic bias: a near hold/forward candidate within the margin beats a retreat.
+  - New config: `prefixRatio` 0.7, `nearMargin` 0.1, `nearSlack` 4. Changed: `windowAhead` 40 → 80, `maxGaps` 2 → 3. Paragraph skips < 80 tokens are now caught in the normal window, not lost mode (aligner test updated).
+- Tuning (5 seeds, mean within-5 over 3 scripts, before → after): light 98.9 → 99.2%, heavy 91.0 → 93.7%, ad-lib 98.9 → 99.0%, skip 97.0 → 98.3%, reread 98.0 → 98.2%. Spurious backward moves on interim results 37 → 0. Max overshoot (rereads excluded) 26 → 4 tokens. Skip recovery mean 2.3 → 1.6 s, worst 6.2 → 4.6 s (worst cases: the first post-skip words are garbled/dropped).
+- Gotchas: "known truth" = truth of the newest recognized word, so recognizer latency isn't charged to the aligner; real-world lag will be higher by ~0.5 s. Corrective backward moves (snapping back onto the truth after a small overshoot on a repeated phrase) are counted separately; ≤ 1 seen. Harness takes ~8 s of `npm test` (parallel per script).
+- Deferred: none.
+- Human check pending: none.

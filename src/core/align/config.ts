@@ -22,6 +22,18 @@ export interface AlignConfig {
   distancePenaltyPerToken: number;
   /** Same, while lost (the window is huge, so it must be much smaller). */
   lostDistancePenaltyPerToken: number;
+  /**
+   * Candidates scoring within this of the best are treated as tied and the one nearest the
+   * expected position wins (repeated phrases; see bestCandidate).
+   */
+  nearMargin: number;
+  /** …among those, candidates within this many tokens of the nearest compete on score. */
+  nearSlack: number;
+  /**
+   * The DP keeps an older tail prefix only if it matches at least this well (weighted
+   * fraction); otherwise the alignment starts after it. See score.ts.
+   */
+  prefixRatio: number;
   /** Max insertions + deletions inside one alignment. */
   maxGaps: number;
   /** Cost of a gap, times the skipped token's weight. */
@@ -71,11 +83,14 @@ export const ALIGN_DEFAULTS: Readonly<AlignConfig> = {
   tailMin: 3,
   tailMax: 8,
   windowBack: 5,
-  windowAhead: 40,
+  windowAhead: 80,
   acceptThreshold: 0.6,
   distancePenaltyPerToken: 0.004,
   lostDistancePenaltyPerToken: 0.00005,
-  maxGaps: 2,
+  nearMargin: 0.1,
+  nearSlack: 4,
+  prefixRatio: 0.7,
+  maxGaps: 3,
   gapPenalty: 0.5,
   mismatchPenalty: 0.5,
   matchSimilarity: 0.7,
@@ -123,6 +138,7 @@ const INTEGER_KEYS = new Set<keyof AlignConfig>([
   'windowBack',
   'windowAhead',
   'maxGaps',
+  'nearSlack',
   'minMatchedTokens',
   'jumpMinMatched',
   'backtrackMinTail',

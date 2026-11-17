@@ -143,10 +143,11 @@ describe('Aligner', () => {
     const p4 = PARAS[3]!.split(/(?<=\.)\s+/);
     for (const sent of p4) s.say(sent);
     expect(s.pos).toBe(after(PARAS[3]!));
-    const jump = s.results.find(
-      (r) => r.moved && r.position - r.previous > ALIGN_DEFAULTS.largeJumpTokens,
-    );
-    expect(jump?.jumped).toBe(true);
+    // One move covers the skipped text; `jumped` flags it only past largeJumpTokens.
+    const skipped = after(PARAS[2]!) - after(PARAS[0]!);
+    const jump = s.results.find((r) => r.moved && r.position - r.previous >= skipped);
+    expect(jump).toBeDefined();
+    expect(jump!.jumped).toBe(jump!.position - jump!.previous > ALIGN_DEFAULTS.largeJumpTokens);
     expect(s.aligner.state.lost).toBe(false);
   });
 

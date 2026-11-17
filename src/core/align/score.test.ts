@@ -72,6 +72,30 @@ describe('scoreWindow', () => {
     expect(near2.q + 1).toBe(after('the Lord prepares a way'));
   });
 
+  it('a misheard word the script lacks does not sink the nearby match', () => {
+    // "motion" (not in the script) replaces "was": the DP drops the bad prefix.
+    const p = after('Nephi');
+    const c = best('nephi motion asked to return to jerusalem', p)!;
+    expect(c.q + 1).toBe(after('Nephi was asked to return to Jerusalem'));
+    expect(c.score).toBeGreaterThan(0.9);
+    // A fuzzy match of a word the script lacks is normalized by the weight it can earn.
+    const m = best('his brothers murmered but nephi said', after('brass plates'))!;
+    expect(m.q + 1).toBe(after('but Nephi said'));
+    expect(m.score).toBeGreaterThan(0.9);
+  });
+
+  it('nearMargin: a slightly worse nearby match beats an exact copy further on', () => {
+    const repeat = buildScriptIndex(
+      parseScript(
+        'when ye are in the service of your fellow beings ye are only in the service of your God',
+      ),
+    );
+    const tail = normalizeText('when motion are in the service of your');
+    const cands = scoreWindow(tail, repeat, 1, cfg);
+    const near = bestCandidate(cands, 1, cfg.nearMargin, cfg.nearSlack)!;
+    expect(repeat.tokens[near.q + 1]!.norm).toBe('fellow');
+  });
+
   it('ad-lib tail → nothing acceptable', () => {
     const p = after('I want to');
     const c = best('so yesterday my car broke down on the highway', p);

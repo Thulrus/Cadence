@@ -27,13 +27,14 @@ src/
     position/           controller.ts (PositionController)
     timing/             timed.ts (timed scroll), pace.ts (elapsed/target pace math)
   engines/              webspeech.ts, simulated.ts, offline/ (M4). Implement RecognizerEngine.
+                        synth/ = pure, seeded synthetic speech (plan → noise → timed events), shared by the harness and the dev simulator
   storage/              scripts.ts (ScriptStore, IndexedDB), settings.ts (SettingsStore, localStorage)
   ui/                   DOM code: views/ (library, editor, prompter, settings; deps.ts = ViewDeps), components/ (dom, nav, notice, fields = labelled controls, quickpanel = in-run display panel), files.ts, autosave.ts, scroll.ts (ease/deadband math + rAF ScrollController), wordstate.ts (position → spoken/current word cursor), update.ts (SW update banner)
   app.ts                Composition root: builds stores, engines, controller, views; wires them.
   main.ts               Entry: imports CSS, calls app, registers the service worker (vite-plugin-pwa).
 test/
   fixtures/             sample scripts, transcripts
-  harness/              synthetic ASR-noise harness (chunk 11)
+  harness/              ASR-noise harness: run.ts (metrics), scenarios.ts, one *.test.ts per sample script, sweep.test.ts (tuning tool)
 public/                 static assets (icon SVGs + committed PNGs from scripts/gen-icons.sh)
 ```
 

@@ -11,8 +11,13 @@
  *     below `matchSimilarity`), tail insertion and script deletion (each −gapPenalty · the
  *     skipped token's weight), at most `maxGaps` gaps;
  *   - the alignment must END on a true match (trailing inserted words are fine);
- *   - score = raw alignment score / total weight of the aligned tail suffix (so an exact match
- *     scores 1), minus `distancePenalty · |q − (p − 1)|`. `p − 1` is where the tail is
+ *   - the DP maximizes raw − prefixRatio · (normalizer of the tail tokens it consumes), not raw,
+ *     so an older tail prefix is only kept when it matches at least `prefixRatio` well
+ *     (otherwise "when MOTION are in the service of your" keeps the misheard prefix, scores
+ *     ~0.7 after normalization, and loses to an exact copy of the suffix further on);
+ *   - score = raw alignment score / the path's normalizer (the weight of the aligned tail
+ *     suffix, except that a matched pair counts the pair weight it can earn, so an exact
+ *     match scores 1 and a fuzzy match of a word the script lacks isn't over-charged), minus `distancePenalty · |q − (p − 1)|`. `p − 1` is where the tail is
  *     expected to end if the speaker said nothing new, so "no movement" costs nothing.
  *
  * Weights for tail tokens come from the script's own weights for the same word; words not in
@@ -129,7 +134,12 @@ export function scoreWindow(
 
   const size = K * W;
   const layer = () => ({
+    /** DP objective: raw − prefixRatio · weight of the tail tokens consumed (see module doc). */
+    obj: new Float64Array(size).fill(-Infinity),
+    /** Raw alignment score of the path chosen by `obj`. */
     score: new Float64Array(size).fill(-Infinity),
+    /** Normalizer of that path: Σ over consumed tail tokens of (matched ? pair : tail) weight. */
+    den: new Float64Array(size),
     start: new Int32Array(size),
     row0: new Int32Array(size),
     matched: new Int32Array(size),
@@ -139,7 +149,7 @@ export function scoreWindow(
     endMatch: new Uint8Array(size),
   });
   const L = Array.from({ length: G + 1 }, layer);
-  const { matchSimilarity, mismatchPenalty, gapPenalty, strongAnchorWeight } = config;
+  const { matchSimilarity, mismatchPenalty, gapPenalty, strongAnchorWeight, prefixRatio } = config;
 
   for (let i = 0; i < K; i++) {
     for (let c = 0; c < W; c++) {
@@ -154,47 +164,65 @@ export function scoreWindow(
       const isContent = isMatch && pairW > CONTENT_MIN_WEIGHT ? 1 : 0;
       const isAnchor = isMatch && pairW >= strongAnchorWeight ? 1 : 0;
       const cell = i * W + c;
+      // A matched pair normalizes by the weight it can earn (a fuzzy match of a word the script
+      // lacks would otherwise weigh 1 but earn only the script word's weight).
+      const matchDen = isMatch ? pairW : tw[i]!;
+      const rowCost = prefixRatio * tw[i]!;
+      const matchCost = prefixRatio * matchDen;
       for (let g = 0; g <= G; g++) {
         const cur = L[g]!;
         let best = -Infinity;
+        let raw = -Infinity;
+        let den = 0;
         let from = -1; // -1 fresh start, else cell index in `src` layer
         let src = cur;
         // Diagonal: match / substitution.
         if (i > 0 && c > 0) {
-          const d = cur.score[cell - W - 1]!;
-          if (d > -Infinity && d + gain > best) {
-            best = d + gain;
+          const d = cur.obj[cell - W - 1]!;
+          if (d > -Infinity && d + gain - matchCost > best) {
+            best = d + gain - matchCost;
+            raw = cur.score[cell - W - 1]! + gain;
+            den = cur.den[cell - W - 1]! + matchDen;
             from = cell - W - 1;
             src = cur;
           }
         }
-        if (g === 0 && isMatch && gain > best) {
-          best = gain;
+        if (g === 0 && isMatch && gain - matchCost > best) {
+          best = gain - matchCost;
+          raw = gain;
+          den = matchDen;
           from = -1;
         }
         if (g > 0) {
           const prev = L[g - 1]!;
           // Tail insertion: tail[i] heard but not in the script.
           if (i > 0) {
-            const u = prev.score[cell - W]!;
-            if (u > -Infinity && u - gapPenalty * tw[i]! > best) {
-              best = u - gapPenalty * tw[i]!;
+            const u = prev.obj[cell - W]!;
+            const cost = gapPenalty * tw[i]!;
+            if (u > -Infinity && u - cost - rowCost > best) {
+              best = u - cost - rowCost;
+              raw = prev.score[cell - W]! - cost;
+              den = prev.den[cell - W]! + tw[i]!;
               from = cell - W;
               src = prev;
             }
           }
           // Script deletion: script[col] skipped. Never useful after the last tail token.
           if (c > 0 && i < K - 1) {
-            const l = prev.score[cell - 1]!;
+            const l = prev.obj[cell - 1]!;
             if (l > -Infinity && l - gapPenalty * w > best) {
               best = l - gapPenalty * w;
+              raw = prev.score[cell - 1]! - gapPenalty * w;
+              den = prev.den[cell - 1]!;
               from = cell - 1;
               src = prev;
             }
           }
         }
-        if (!(best > 0)) continue;
-        cur.score[cell] = best;
+        if (!(raw > 0)) continue;
+        cur.obj[cell] = best;
+        cur.score[cell] = raw;
+        cur.den[cell] = den;
         const viaDiag = from === cell - W - 1 && src === cur;
         if (from === -1) {
           cur.start[cell] = col;
@@ -217,9 +245,6 @@ export function scoreWindow(
     }
   }
 
-  // Suffix weight sums for normalization.
-  const suffixW = new Float64Array(K + 1);
-  for (let i = K - 1; i >= 0; i--) suffixW[i] = suffixW[i + 1]! + tw[i]!;
   const minSpan = Math.min(config.tailMin, K);
   const expected = p - 1;
   const out: Candidate[] = [];
@@ -234,7 +259,7 @@ export function scoreWindow(
       const row0 = cur.row0[cell]!;
       const tailSpan = K - row0;
       if (tailSpan < minSpan) continue;
-      const score = raw / suffixW[row0]! - distPenalty * Math.abs(q - expected);
+      const score = raw / cur.den[cell]! - distPenalty * Math.abs(q - expected);
       if (bestC && bestC.score >= score) continue;
       bestC = {
         q,
@@ -251,15 +276,30 @@ export function scoreWindow(
   return out;
 }
 
-/** Highest score; ties go to the candidate nearest the expected end (p − 1), then lower q. */
-export function bestCandidate(candidates: readonly Candidate[], p: number): Candidate | null {
+/**
+ * Highest score, except when the script repeats a phrase: candidates within `margin` of the
+ * best are in contention, and only those within `slack` tokens of the nearest contender
+ * (to the expected end p − 1) are kept; the highest score among them wins (ties: nearer, then
+ * lower q). The margin matters because the DP keeps the best *raw* path per end, so a nearby
+ * match with one misheard word can score a little below an exact copy of a short phrase the
+ * script repeats further on ("in the service of your … in the service of your"). The slack
+ * keeps a one-word step forward from losing to "hold" (the new word read as an insertion).
+ */
+export function bestCandidate(
+  candidates: readonly Candidate[],
+  p: number,
+  margin = 0,
+  slack = 0,
+): Candidate | null {
+  let top = -Infinity;
+  for (const c of candidates) top = Math.max(top, c.score);
+  const dist = (c: Candidate) => Math.abs(c.q - (p - 1));
+  let nearest = Infinity;
+  for (const c of candidates) if (c.score >= top - margin) nearest = Math.min(nearest, dist(c));
   let best: Candidate | null = null;
   for (const c of candidates) {
-    if (
-      !best ||
-      c.score > best.score ||
-      (c.score === best.score && Math.abs(c.q - (p - 1)) < Math.abs(best.q - (p - 1)))
-    ) {
+    if (c.score < top - margin || dist(c) > nearest + slack) continue;
+    if (!best || c.score > best.score || (c.score === best.score && dist(c) < dist(best))) {
       best = c;
     }
   }

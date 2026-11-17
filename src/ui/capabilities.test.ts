@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   CAPABILITY_MESSAGES,
   detectCapabilities,
+  meterEnabled,
   resolveEngine,
   type CapabilityEnv,
 } from './capabilities';
@@ -69,5 +70,22 @@ describe('capabilities', () => {
       engine: 'webspeech',
       note: CAPABILITY_MESSAGES.offlineLater,
     });
+  });
+});
+
+describe('meterEnabled', () => {
+  const android = detectCapabilities(env({}));
+  const desktop = detectCapabilities(
+    env({ userAgent: 'Mozilla/5.0 (X11; Linux x86_64) Chrome/130.0.0.0 Safari/537.36' }),
+  );
+  it('auto is off on Android (blocks Web Speech), on elsewhere', () => {
+    expect(android.android).toBe(true);
+    expect(meterEnabled('auto', android)).toBe(false);
+    expect(meterEnabled('auto', desktop)).toBe(true);
+  });
+  it('on/off override; no getUserMedia means off', () => {
+    expect(meterEnabled('on', android)).toBe(true);
+    expect(meterEnabled('off', desktop)).toBe(false);
+    expect(meterEnabled('on', { ...desktop, getUserMedia: false })).toBe(false);
   });
 });

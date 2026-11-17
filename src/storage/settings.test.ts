@@ -107,3 +107,16 @@ describe('SettingsStore', () => {
     expect(s.get().appearance.theme).toBe('light');
   });
 });
+
+describe('engine.micMeter migration', () => {
+  const load = (micMeter: unknown) =>
+    new SettingsStore(
+      memoryStorage({ [SETTINGS_KEY]: JSON.stringify({ engine: { micMeter } }) }),
+    ).get().engine.micMeter;
+  it('maps the old boolean (true was the default) and validates modes', () => {
+    expect(load(true)).toBe('auto');
+    expect(load(false)).toBe('off');
+    expect(load('on')).toBe('on');
+    expect(load('loud')).toBe('auto');
+  });
+});

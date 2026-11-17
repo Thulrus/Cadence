@@ -141,4 +141,4 @@ Entry template:
 
 - Owner on Android Chrome (phone): privacy notice, mic prompt, badge "Listening", but no tracking and no level meter. Prime suspect: the meter's second `getUserMedia` stream starving Web Speech on Android (the brief's warning). Not yet confirmed.
 - Added `?debug` (`ui/debuglog.ts`): on-screen log of recognizer lifecycle (`launch/start/audiostart/soundstart/speechstart/…/end`), errors, raw results (`@resultIndex/length`, `i`/`F` per result), status changes, meter failure reason. `WebSpeechDeps.debug` hook.
-- Next: owner retests with Settings → Mic level meter off, and with `?debug`. If meter-off fixes it, default `micMeter` off on Android (or derive the level from recognizer events instead).
+- **Confirmed by owner:** with the meter off, voice following works well on the Android phone. So `engine.micMeter` is now `'auto' | 'on' | 'off'` (default `auto` = off on Android, on elsewhere; `meterEnabled()` in `capabilities.ts`). Stored booleans migrate: `true` → `auto`, `false` → `off`. Android tablets will have no meter unless set to On.

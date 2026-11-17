@@ -2,7 +2,7 @@
  * Startup capability detection (SPEC §2) and engine resolution. Pure functions over a small
  * environment snapshot, so they are unit-tested without a browser.
  */
-import type { EngineChoice } from '../storage/settings';
+import type { EngineChoice, MicMeterMode } from '../storage/settings';
 
 export interface Capabilities {
   /** SpeechRecognition or webkitSpeechRecognition exists. */
@@ -12,6 +12,7 @@ export interface Capabilities {
   /** navigator.mediaDevices.getUserMedia exists (mic meter). */
   getUserMedia: boolean;
   ios: boolean;
+  android: boolean;
   firefox: boolean;
 }
 
@@ -32,6 +33,7 @@ export function detectCapabilities(env: CapabilityEnv): Capabilities {
     secure: env.isSecureContext,
     getUserMedia: env.hasGetUserMedia,
     ios,
+    android: /Android/.test(ua),
     firefox: /Firefox\//.test(ua) && !/Seamonkey/i.test(ua),
   };
 }
@@ -46,6 +48,15 @@ export function browserEnv(): CapabilityEnv {
     userAgent: navigator.userAgent,
     maxTouchPoints: navigator.maxTouchPoints ?? 0,
   };
+}
+
+/**
+ * Whether to run the mic level meter. On Android Chrome a second capture stream starves Web
+ * Speech (recognition reports listening but hears nothing; owner-confirmed), so `auto` is off.
+ */
+export function meterEnabled(mode: MicMeterMode, caps: Capabilities): boolean {
+  if (!caps.getUserMedia || mode === 'off') return false;
+  return mode === 'on' || !caps.android;
 }
 
 export type ResolvedEngine = 'webspeech' | 'simulated' | 'none';

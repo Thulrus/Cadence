@@ -1,11 +1,13 @@
 import {
   ENGINE_CHOICES,
   HIGHLIGHT_MODES,
+  MIC_METER_MODES,
   SETTINGS_LIMITS,
   THEMES,
   type AppearanceSettings,
   type EngineChoice,
   type EngineSettings,
+  type MicMeterMode,
   type HighlightMode,
   type SettingsStore,
   type Theme,
@@ -132,6 +134,12 @@ export const ENGINE_LANGS = [
   { value: 'en-ZA', label: 'English (South Africa)' },
 ] as const;
 
+const MIC_METER_LABELS: Record<MicMeterMode, string> = {
+  auto: 'Auto (off on Android)',
+  on: 'On',
+  off: 'Off',
+};
+
 const ENGINE_LABELS: Record<EngineChoice, string> = {
   auto: 'Automatic',
   webspeech: 'Browser speech service',
@@ -155,9 +163,9 @@ export function engineFields(settings: SettingsStore): Field[] {
       get: () => e().lang,
       set: (lang) => set({ lang }),
     }),
-    toggleField({
+    choiceField<MicMeterMode>({
       label: 'Mic level meter',
-      hint: 'Shows input level while listening. If voice following works badly on your device, try turning this off.',
+      options: MIC_METER_MODES.map((m) => ({ value: m, label: MIC_METER_LABELS[m] })),
       get: () => e().micMeter,
       set: (micMeter) => set({ micMeter }),
     }),

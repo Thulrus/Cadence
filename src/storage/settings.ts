@@ -14,6 +14,10 @@ export type RunMode = (typeof RUN_MODES)[number];
 export const ENGINE_CHOICES = ['auto', 'webspeech', 'offline'] as const;
 export type EngineChoice = (typeof ENGINE_CHOICES)[number];
 
+export const MIC_METER_MODES = ['auto', 'on', 'off'] as const;
+/** `auto` = on except on Android, where a second mic stream blocks Web Speech. */
+export type MicMeterMode = (typeof MIC_METER_MODES)[number];
+
 export interface AppearanceSettings {
   fontFamily: string;
   fontSizePx: number;
@@ -41,8 +45,8 @@ export interface RunSettings {
 export interface EngineSettings {
   choice: EngineChoice;
   lang: string;
-  /** Show the mic level meter (a second capture stream; may conflict on some devices). */
-  micMeter: boolean;
+  /** Mic level meter (a second capture stream; blocks Web Speech on Android). */
+  micMeter: MicMeterMode;
   /** The one-time Web Speech privacy notice was acknowledged. */
   privacyNoticeSeen: boolean;
 }
@@ -90,7 +94,7 @@ export const DEFAULT_SETTINGS: Readonly<Settings> = Object.freeze({
     readingLinePct: 33,
   },
   run: { mode: 'voice', timedWpm: 150, targetDurationSec: null },
-  engine: { choice: 'auto', lang: 'en-US', micMeter: true, privacyNoticeSeen: false },
+  engine: { choice: 'auto', lang: 'en-US', micMeter: 'auto', privacyNoticeSeen: false },
   align: {},
 } satisfies Settings);
 
@@ -165,7 +169,13 @@ function sanitizeEngine(raw: unknown, base: EngineSettings): EngineSettings {
   return {
     choice: oneOf(r.choice, ENGINE_CHOICES, base.choice),
     lang: str(r.lang, base.lang),
-    micMeter: bool(r.micMeter, base.micMeter),
+    // Before 'auto' existed this was a boolean whose default (true) now means 'auto'.
+    micMeter:
+      typeof r.micMeter === 'boolean'
+        ? r.micMeter
+          ? 'auto'
+          : 'off'
+        : oneOf(r.micMeter, MIC_METER_MODES, base.micMeter),
     privacyNoticeSeen: bool(r.privacyNoticeSeen, base.privacyNoticeSeen),
   };
 }

@@ -12,7 +12,7 @@ import { button, h } from '../components/dom';
 import { createQuickPanel } from '../components/quickpanel';
 import { createDebugPanel, debugEnabled } from '../debuglog';
 import { createSimPanel, DEVSIM_CONFIG, simEnabled } from '../devsim';
-import { browserEnv, detectCapabilities, resolveEngine } from '../capabilities';
+import { browserEnv, detectCapabilities, meterEnabled, resolveEngine } from '../capabilities';
 import { jumpMessage, linesBetween, statusBadge, TimingStats, VoiceFollowSession } from '../follow';
 import { routeHash, type Route, type View } from '../router';
 import {
@@ -375,7 +375,7 @@ export function createPrompterView(deps: ViewDeps): View {
         root.append(debugLog.el);
         cleanups.push(() => debugLog.el.remove());
         debugLog.log(
-          `engine ${resolved.engine}; webSpeech ${caps.webSpeech}, secure ${caps.secure}, getUserMedia ${caps.getUserMedia}, meter setting ${engineSettings.micMeter}`,
+          `engine ${resolved.engine}; webSpeech ${caps.webSpeech}, secure ${caps.secure}, getUserMedia ${caps.getUserMedia}, meter setting ${engineSettings.micMeter}, android ${caps.android}`,
         );
       }
       if (resolved.note) deps.notices.show(resolved.note, 'info', PROMPTER_CONFIG.noteMs);
@@ -412,7 +412,7 @@ export function createPrompterView(deps: ViewDeps): View {
       if (resolved.engine === 'webspeech') {
         const Recognition = getSpeechRecognition();
         if (Recognition) {
-          meterOn = engineSettings.micMeter && caps.getUserMedia;
+          meterOn = meterEnabled(engineSettings.micMeter, caps);
           const meter = meterOn
             ? new MicMeter({
                 onFail: (err) => {

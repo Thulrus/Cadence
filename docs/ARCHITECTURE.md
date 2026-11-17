@@ -88,7 +88,7 @@ interface ScriptIndex {
 
 ## Settings
 
-One typed `Settings` object (chunk 01) with defaults, persisted to `localStorage` under `cadence.settings.v1`, with a `version` field and a migrate step. Groups: `appearance`, `run` (mode, timed WPM, target duration, reading-line %), `engine` (choice, lang), `align` (overrides of the aligner config; empty = defaults). Unknown/missing fields fall back to defaults; never crash on bad stored JSON.
+One typed `Settings` object (chunk 01) with defaults, persisted to `localStorage` under `cadence.settings.v1`, with a `version` field and a migrate step. Groups: `appearance` (incl. reading-line %), `run` (mode, timed WPM, target duration), `engine` (choice, lang), `align` (overrides of the aligner config; empty = defaults). Unknown/missing fields fall back to defaults; never crash on bad stored JSON.
 
 ## Conventions
 

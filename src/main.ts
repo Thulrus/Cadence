@@ -1,7 +1,11 @@
 import './style.css';
+import { createApp } from './app';
 
-// Placeholder entry point. Chunk 01 replaces this with the app shell (see docs/chunks/01-app-shell.md).
-const app = document.querySelector<HTMLDivElement>('#app');
-if (app) {
-  app.textContent = 'Cadence';
+const container = document.querySelector<HTMLElement>('#app');
+if (container) {
+  const app = createApp(container);
+  if (import.meta.env.DEV) {
+    // Dev-only console handle, e.g. __cadence.settings.update({ appearance: { theme: 'light' } })
+    (window as unknown as { __cadence: typeof app }).__cadence = app;
+  }
 }

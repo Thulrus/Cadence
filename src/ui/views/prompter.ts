@@ -297,6 +297,13 @@ export function createPrompterView(deps: ViewDeps): View {
       let controlsHidden = (): boolean => false;
       let showControls = (): void => {};
       let scheduleHide = (): void => {};
+      // Visible way back to the auto-hidden bar (CSS shows it only while the bar is hidden).
+      const revealBtn = button('☰', () => showControls(), 'plain', {
+        className: 'btn controls-reveal',
+        ariaLabel: 'Show controls',
+        title: 'Show controls',
+      });
+      view.append(revealBtn);
       let toastTimer: ReturnType<typeof setTimeout> | undefined;
       function hideToast(): void {
         clearTimeout(toastTimer);

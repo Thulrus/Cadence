@@ -4,6 +4,15 @@ import { createApp } from './app';
 
 const container = document.querySelector<HTMLElement>('#app');
 if (container) {
+  // The app lives in a fixed full-screen box and never scrolls the document. If something does
+  // (a focus() or scroll chaining in a mobile browser tab), snap back so the top bar stays visible.
+  window.addEventListener(
+    'scroll',
+    () => {
+      if (window.scrollX !== 0 || window.scrollY !== 0) window.scrollTo(0, 0);
+    },
+    { passive: true },
+  );
   // Assigned below; the banner calls it only after an update is waiting.
   let updateSW: (reload?: boolean) => Promise<void> = async () => location.reload();
   const applyUpdate = async (): Promise<void> => {

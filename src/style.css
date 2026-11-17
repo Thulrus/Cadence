@@ -107,9 +107,13 @@ body {
   overflow: hidden;
 }
 
+/* Pinned to the visible viewport rather than sized with 100dvh in normal flow: in a mobile
+   browser tab the document itself could otherwise end up scrolled (programmatically, or by the
+   toolbar resizing the viewport), sliding the prompter bar up under the browser/system bar.
+   A fixed box always tracks what's on screen; the installed app never had this problem. */
 #app {
-  height: 100dvh;
-  width: 100vw;
+  position: fixed;
+  inset: 0;
   display: flex;
   flex-direction: column;
   padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)

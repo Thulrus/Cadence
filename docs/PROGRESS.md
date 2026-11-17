@@ -122,3 +122,7 @@ Entry template:
 - Gotchas for 13: create the real engine and call `startFollow(engine)` in `prompter.ts` (it registers cleanup); `session.start()` must then come from the Start button's gesture. The sim panel shows engine status; 13's badge should listen to `session.events.on('status')`. `test/harness/perf.test.ts` is a skipped timing tool (`PERF=1`).
 - Deferred: none.
 - Human check pending: `npm run dev`, open a long script, expand "Simulator", "Replay from here" at light/heavy: tracking never jitters back; drag-scroll away mid-replay (highlight keeps moving, no scroll), Resume eases back; type a sentence from far ahead → toast → Undo; type nonsense repeatedly → Lost badge; tap a word → resync. On the tablet: open with `?sim` and watch the `[cadence]` perf log via remote devtools.
+
+## Owner check — Chunk 12 simulator (2026-11-17)
+
+- Owner tested the simulator in the browser: the prompter follows simulated speech well and showed no false jumps to the wrong text. Tablet perf log (`?sim`) not yet checked.

@@ -116,7 +116,7 @@ Deliver this as a pure, deterministic, well-documented module with the scoring f
 
 ## 8. Display & scrolling
 
-- **Word-level spans.** States: *spoken* (dimmed), *current* (highlight on next word), *upcoming* (normal). Optional: highlight only the current line instead of words.
+- **Word-level spans.** States: *spoken* (dimmed), *current* (highlight on next word), *upcoming* (normal). Optional: highlight only the current line instead of words, or no highlight at all (spoken words still dim).
 - **Reading line:** the current word/line is kept at a configurable vertical position (default ~30–35% from top, so eyes stay near a camera lens above the screen).
 - **Smooth, stable scrolling:** ease toward the target; use a deadband so the view moves by line, not jittering per word; never scroll backward unless `p` genuinely moved back. Respect `prefers-reduced-motion` only for decorative animation, not for the scroll itself.
 - **Appearance settings** (persisted): font family/size, line height, text width/margins, colors (dark, light, high-contrast, and green-on-black), spoken-text dimming amount, **mirror horizontal / flip vertical** (for beam-splitter prompter glass).

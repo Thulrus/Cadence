@@ -51,6 +51,12 @@ describe('SettingsStore', () => {
     expect(v.align).toEqual({ a: 1, b: true });
   });
 
+  it('accepts every highlight mode, including none', () => {
+    for (const highlight of ['word', 'line', 'none'] as const) {
+      expect(parseSettings({ appearance: { highlight } }).appearance.highlight).toBe(highlight);
+    }
+  });
+
   it('clamps out-of-range numbers', () => {
     const v = parseSettings({ appearance: { columnChars: 99, spokenDim: -1 } });
     expect(v.appearance.columnChars).toBe(50);

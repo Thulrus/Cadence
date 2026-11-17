@@ -33,7 +33,11 @@ import { navBar } from '../components/nav';
 import type { View } from '../router';
 import type { ViewDeps } from './deps';
 
-const HIGHLIGHT_LABELS: Record<HighlightMode, string> = { word: 'Word', line: 'Line' };
+const HIGHLIGHT_LABELS: Record<HighlightMode, string> = {
+  word: 'Word',
+  line: 'Line',
+  none: 'None',
+};
 
 /** Slider steps (UI only; storage limits live in SETTINGS_LIMITS). */
 const STEPS = { fontSizePx: 1, lineHeight: 0.05, columnChars: 1, marginPct: 1, pct: 1 } as const;

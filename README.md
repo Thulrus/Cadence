@@ -57,7 +57,7 @@ Most Bluetooth presentation clickers send Page Down / Page Up (next / previous p
 
 ### Display
 
-**Aa** in the prompter bar changes text size, theme (dark, light, high contrast, green on black), mirror and flip (for prompter glass), the reading-line height, and the target time, without losing your place. **Settings** has everything: font, line spacing, column width, margins, how dim already-spoken text is, word or line highlight, run options, and the speech engine and language. **⛶** goes fullscreen, and the screen is kept awake while the prompter is open (where the browser allows it).
+**Aa** in the prompter bar changes text size, theme (dark, light, high contrast, green on black), mirror and flip (for prompter glass), the reading-line height, and the target time, without losing your place. **Settings** has everything: font, line spacing, column width, margins, how dim already-spoken text is, word, line, or no highlight, run options, and the speech engine and language. **⛶** goes fullscreen, and the screen is kept awake while the prompter is open (where the browser allows it).
 
 ### Tuning
 

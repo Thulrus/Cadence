@@ -5,7 +5,7 @@ import { Emitter } from '../core/emitter';
 export const THEMES = ['dark', 'light', 'high-contrast', 'green-on-black'] as const;
 export type Theme = (typeof THEMES)[number];
 
-export const HIGHLIGHT_MODES = ['word', 'line'] as const;
+export const HIGHLIGHT_MODES = ['word', 'line', 'none'] as const;
 export type HighlightMode = (typeof HIGHLIGHT_MODES)[number];
 
 export const RUN_MODES = ['voice', 'timed', 'manual'] as const;

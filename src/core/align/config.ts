@@ -148,3 +148,223 @@ const INTEGER_KEYS = new Set<keyof AlignConfig>([
   'lostTailMin',
   'largeJumpTokens',
 ]);
+
+/** UI metadata for one tunable value (Settings → Advanced). */
+export interface TuningParam {
+  /** Short label. */
+  label: string;
+  /** User-facing help text. */
+  help: string;
+  /** Numeric bounds and step for the form (ignored for booleans). */
+  min?: number;
+  max?: number;
+  step?: number;
+}
+
+/**
+ * Tuning-panel metadata for every key of AlignConfig (typed as a full Record, so adding a key
+ * without metadata fails the typecheck). Bounds are for the form only; resolveConfig still
+ * accepts any finite value ≥ 0.
+ */
+export const ALIGN_TUNING: Readonly<Record<keyof AlignConfig, TuningParam>> = {
+  tailMin: {
+    label: 'Shortest tail',
+    help: 'Fewest recent words worth matching; also the shortest matched stretch accepted.',
+    min: 1,
+    max: 10,
+    step: 1,
+  },
+  tailMax: {
+    label: 'Tail length',
+    help: 'How many of the most recently heard words are matched against the script.',
+    min: 2,
+    max: 20,
+    step: 1,
+  },
+  windowBack: {
+    label: 'Window behind',
+    help: 'Words behind the current position searched for a match.',
+    min: 0,
+    max: 40,
+    step: 1,
+  },
+  windowAhead: {
+    label: 'Window ahead',
+    help: 'Words ahead of the current position searched for a match. Larger catches bigger skips sooner.',
+    min: 10,
+    max: 300,
+    step: 1,
+  },
+  acceptThreshold: {
+    label: 'Accept threshold',
+    help: 'Minimum match score (0–1) to move. Higher = fewer false moves, more hesitation.',
+    min: 0,
+    max: 1,
+    step: 0.01,
+  },
+  distancePenaltyPerToken: {
+    label: 'Distance penalty',
+    help: 'Score removed per word of distance from the expected spot (prefers nearby matches).',
+    min: 0,
+    max: 0.05,
+    step: 0.0005,
+  },
+  lostDistancePenaltyPerToken: {
+    label: 'Distance penalty (lost)',
+    help: 'Same, while lost and searching the whole script.',
+    min: 0,
+    max: 0.005,
+    step: 0.00001,
+  },
+  nearMargin: {
+    label: 'Tie margin',
+    help: 'Matches scoring within this of the best are treated as tied; the nearest wins (repeated phrases).',
+    min: 0,
+    max: 0.5,
+    step: 0.01,
+  },
+  nearSlack: {
+    label: 'Tie slack',
+    help: 'Among tied matches, those within this many words of the nearest still compete on score.',
+    min: 0,
+    max: 20,
+    step: 1,
+  },
+  prefixRatio: {
+    label: 'Prefix ratio',
+    help: 'An older part of the heard words is kept in a match only if it matches at least this well.',
+    min: 0,
+    max: 1,
+    step: 0.05,
+  },
+  maxGaps: {
+    label: 'Max gaps',
+    help: 'Words that may be skipped or inserted inside one match.',
+    min: 0,
+    max: 8,
+    step: 1,
+  },
+  gapPenalty: {
+    label: 'Gap penalty',
+    help: 'Cost of a skipped/inserted word, times that word’s weight.',
+    min: 0,
+    max: 2,
+    step: 0.05,
+  },
+  mismatchPenalty: {
+    label: 'Mismatch penalty',
+    help: 'Cost of pairing two different words, times the script word’s weight.',
+    min: 0,
+    max: 2,
+    step: 0.05,
+  },
+  matchSimilarity: {
+    label: 'Word similarity',
+    help: 'How alike (0–1) a heard word and a script word must be to count as the same word.',
+    min: 0,
+    max: 1,
+    step: 0.01,
+  },
+  minMatchedTokens: {
+    label: 'Min matched words',
+    help: 'Matched words needed when no distinctive (strong-anchor) word is matched.',
+    min: 1,
+    max: 10,
+    step: 1,
+  },
+  jumpMinMatched: {
+    label: 'Min words to skip ahead',
+    help: 'Matched words needed to move forward past skipped text (stops short ad-lib phrases dragging the prompter).',
+    min: 1,
+    max: 12,
+    step: 1,
+  },
+  strongAnchorWeight: {
+    label: 'Strong anchor weight',
+    help: 'Word weight (0–1) at which a word is distinctive enough to anchor a match on its own.',
+    min: 0,
+    max: 1,
+    step: 0.05,
+  },
+  allowBacktrack: {
+    label: 'Allow rereading',
+    help: 'Let the prompter move back when you confidently reread earlier text.',
+  },
+  backtrackThreshold: {
+    label: 'Reread threshold',
+    help: 'Score a backward move needs.',
+    min: 0,
+    max: 1,
+    step: 0.01,
+  },
+  backtrackMinTail: {
+    label: 'Reread min words',
+    help: 'Matched stretch a backward move needs.',
+    min: 1,
+    max: 12,
+    step: 1,
+  },
+  backtrackMinTokens: {
+    label: 'Reread min distance',
+    help: 'Backward moves shorter than this many words are ignored as noise.',
+    min: 0,
+    max: 20,
+    step: 1,
+  },
+  backtrackWindow: {
+    label: 'Reread window',
+    help: 'How far back (words) to look for a reread when nothing matches ahead.',
+    min: 0,
+    max: 300,
+    step: 1,
+  },
+  lostAfterMs: {
+    label: 'Lost after (ms)',
+    help: 'Speech time without a match before the search widens.',
+    min: 500,
+    max: 20_000,
+    step: 100,
+  },
+  lostStepMs: {
+    label: 'Widen step (ms)',
+    help: 'Further speech time per widening step while lost.',
+    min: 100,
+    max: 10_000,
+    step: 100,
+  },
+  lostWidenSteps: {
+    label: 'Widen steps',
+    help: 'Steps until the search covers the whole script.',
+    min: 1,
+    max: 10,
+    step: 1,
+  },
+  lostTailMin: {
+    label: 'Lost min words',
+    help: 'Matched stretch a jump needs while lost.',
+    min: 1,
+    max: 12,
+    step: 1,
+  },
+  lostThreshold: {
+    label: 'Lost threshold',
+    help: 'Score a jump needs while lost.',
+    min: 0,
+    max: 1,
+    step: 0.01,
+  },
+  activityGapMs: {
+    label: 'Silence gap (ms)',
+    help: 'Pauses longer than this between results don’t count as speech time.',
+    min: 100,
+    max: 10_000,
+    step: 100,
+  },
+  largeJumpTokens: {
+    label: 'Large jump (words)',
+    help: 'Moves bigger than this show the “Jumped … — Undo” message.',
+    min: 1,
+    max: 500,
+    step: 1,
+  },
+};

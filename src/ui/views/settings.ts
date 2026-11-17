@@ -1,5 +1,8 @@
+import { ALIGN_DEFAULTS, ALIGN_TUNING, resolveConfig } from '../../core/align/config';
 import {
   ENGINE_CHOICES,
+  RUN_MODES,
+  TIMER_DISPLAYS,
   HIGHLIGHT_MODES,
   MIC_METER_MODES,
   SETTINGS_LIMITS,
@@ -9,13 +12,17 @@ import {
   type EngineSettings,
   type MicMeterMode,
   type HighlightMode,
+  type RunMode,
+  type RunSettings,
   type SettingsStore,
   type Theme,
+  type TimerDisplay,
 } from '../../storage/settings';
 import { FONT_FAMILIES, THEME_LABELS } from '../appearance';
 import { button, h } from '../components/dom';
 import {
   choiceField,
+  numberField,
   rangeField,
   selectField,
   toggleField,
@@ -172,6 +179,111 @@ export function engineFields(settings: SettingsStore): Field[] {
   ];
 }
 
+export const RUN_MODE_LABELS: Record<RunMode, string> = {
+  voice: 'Voice',
+  timed: 'Timed',
+  manual: 'Manual',
+};
+
+const TIMER_LABELS: Record<TimerDisplay, string> = {
+  always: 'Always visible',
+  'with-controls': 'With controls',
+  off: 'Off',
+};
+
+const SEC_PER_MIN = 60;
+const WPM_STEP = 5;
+
+/** Target duration as a minutes box (blank = no target), bound to the settings store. */
+export function targetField(settings: SettingsStore, label = 'Target duration'): Field {
+  const L = SETTINGS_LIMITS.targetDurationSec;
+  return numberField({
+    label,
+    unit: 'minutes',
+    min: L.min / SEC_PER_MIN,
+    max: L.max / SEC_PER_MIN,
+    step: 0.5,
+    optional: true,
+    placeholder: 'none',
+    hint: 'Shows “on pace / 1:20 behind” next to the timer. Leave blank for no target.',
+    get: () => {
+      const t = settings.get().run.targetDurationSec;
+      return t === null ? null : t / SEC_PER_MIN;
+    },
+    set: (m) =>
+      settings.update({
+        run: { targetDurationSec: m === null ? null : Math.round(m * SEC_PER_MIN) },
+      }),
+  });
+}
+
+/** Run controls (mode, timed speed, target, auto-hide, timer), bound to the settings store. */
+export function runFields(settings: SettingsStore): Field[] {
+  const r = () => settings.get().run;
+  const set = (patch: Partial<RunSettings>) => settings.update({ run: patch });
+  const L = SETTINGS_LIMITS;
+  return [
+    choiceField<RunMode>({
+      label: 'Mode',
+      options: RUN_MODES.map((m) => ({ value: m, label: RUN_MODE_LABELS[m] })),
+      get: () => r().mode,
+      set: (mode) => set({ mode }),
+    }),
+    rangeField({
+      label: 'Timed scroll speed',
+      unit: 'words/min',
+      ...L.timedWpm,
+      step: WPM_STEP,
+      get: () => r().timedWpm,
+      set: (timedWpm) => set({ timedWpm }),
+    }),
+    targetField(settings),
+    rangeField({
+      label: 'Hide controls after',
+      unit: 'seconds',
+      ...L.autoHideSec,
+      step: 1,
+      hint: 'During a run, the controls fade out after this long; tap near the top or bottom edge (or press Esc) to bring them back. 0 = never hide.',
+      get: () => r().autoHideSec,
+      set: (autoHideSec) => set({ autoHideSec }),
+    }),
+    choiceField<TimerDisplay>({
+      label: 'Run timer',
+      options: TIMER_DISPLAYS.map((t) => ({ value: t, label: TIMER_LABELS[t] })),
+      get: () => r().timer,
+      set: (timer) => set({ timer }),
+    }),
+  ];
+}
+
+/** One field per aligner tunable (ALIGN_TUNING), writing sparse overrides to Settings.align. */
+export function tuningFields(settings: SettingsStore): Field[] {
+  const current = () => resolveConfig(settings.get().align) as unknown as Record<string, unknown>;
+  return Object.entries(ALIGN_TUNING).map(([key, p]) => {
+    const def = (ALIGN_DEFAULTS as unknown as Record<string, number | boolean>)[key]!;
+    const hint = `${p.help} Default: ${typeof def === 'boolean' ? (def ? 'on' : 'off') : def}.`;
+    const field =
+      typeof def === 'boolean'
+        ? toggleField({
+            label: p.label,
+            hint,
+            get: () => current()[key] as boolean,
+            set: (v) => settings.update({ align: { [key]: v } }),
+          })
+        : numberField({
+            label: p.label,
+            min: p.min ?? 0,
+            max: p.max ?? Number.MAX_SAFE_INTEGER,
+            step: p.step ?? 1,
+            hint,
+            get: () => current()[key] as number,
+            set: (v) => v !== null && settings.update({ align: { [key]: v } }),
+          });
+    field.el.dataset.tune = key;
+    return field;
+  });
+}
+
 /** Sample text showing every word state, styled by the same CSS as the prompter. */
 function preview(): HTMLElement {
   const words = (cls: string, text: string) =>
@@ -205,16 +317,7 @@ function preview(): HTMLElement {
   );
 }
 
-function laterSection(title: string, note: string, key: string): HTMLElement {
-  return h(
-    'section',
-    { className: 'settings-section', dataset: { section: key } },
-    h('h2', {}, title),
-    h('p', { className: 'field-hint' }, note),
-  );
-}
-
-/** Settings view. Appearance and Engine are complete; Run and Tuning sections are filled later. */
+/** Settings view: Appearance, Run, Speech engine, Advanced (aligner tuning). */
 export function createSettingsView(deps: ViewDeps): View {
   let root: HTMLElement | null = null;
   let off: (() => void) | null = null;
@@ -223,6 +326,28 @@ export function createSettingsView(deps: ViewDeps): View {
       const fields = appearanceFields(deps.settings);
       const engine = engineFields(deps.settings);
       const reset = button('Reset appearance', () => deps.settings.reset('appearance'));
+      const run = runFields(deps.settings);
+      const tuning = tuningFields(deps.settings);
+      let advanced = false;
+      const tuningBox = h(
+        'div',
+        { className: 'tuning', hidden: true },
+        h(
+          'p',
+          { className: 'field-hint' },
+          'Voice-follow tuning. Changes apply immediately, even mid-run. Only change these if following misbehaves; “Reset tuning” restores the tested defaults.',
+        ),
+        button('Reset tuning to defaults', () => deps.settings.reset('align'), 'danger'),
+        h('div', { className: 'fields tuning-fields' }, ...tuning.map((f) => f.el)),
+      );
+      const showAdvanced = toggleField({
+        label: 'Show advanced',
+        get: () => advanced,
+        set: (v) => {
+          advanced = v;
+          tuningBox.hidden = !v;
+        },
+      });
       root = h(
         'section',
         { className: 'view view-settings' },
@@ -239,7 +364,12 @@ export function createSettingsView(deps: ViewDeps): View {
             preview(),
           ),
         ),
-        laterSection('Run', 'Run mode and timed-scroll speed arrive in a later update.', 'run'),
+        h(
+          'section',
+          { className: 'settings-section', dataset: { section: 'run' } },
+          h('h2', {}, 'Run'),
+          h('div', { className: 'fields' }, ...run.map((f) => f.el)),
+        ),
         h(
           'section',
           { className: 'settings-section', dataset: { section: 'engine' } },
@@ -251,16 +381,20 @@ export function createSettingsView(deps: ViewDeps): View {
           ),
           h('div', { className: 'fields' }, ...engine.map((f) => f.el)),
         ),
-        laterSection(
-          'Advanced / tuning',
-          'Voice-follow tuning controls arrive in a later update.',
-          'tuning',
+        h(
+          'section',
+          { className: 'settings-section', dataset: { section: 'tuning' } },
+          h('h2', {}, 'Advanced'),
+          showAdvanced.el,
+          tuningBox,
         ),
       );
       container.append(root);
       off = deps.settings.on('change', ({ groups }) => {
         if (groups.includes('appearance')) for (const f of fields) f.sync();
         if (groups.includes('engine')) for (const f of engine) f.sync();
+        if (groups.includes('run')) for (const f of run) f.sync();
+        if (groups.includes('align')) for (const f of tuning) f.sync();
       });
     },
     unmount() {

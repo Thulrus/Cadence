@@ -34,7 +34,7 @@ describe('SettingsStore', () => {
     const v = new SettingsStore(
       stored({
         appearance: { theme: 'neon', fontSizePx: '80', mirrorX: 'yes', lineHeight: 2 },
-        run: { mode: 42, targetDurationSec: 'soon' },
+        run: { mode: 42, targetDurationSec: 'soon', autoHideSec: 999, timer: 'sometimes' },
         engine: 'webspeech',
         align: { a: 1, b: true, c: 'x', d: null },
       }),
@@ -45,6 +45,8 @@ describe('SettingsStore', () => {
     expect(v.appearance.lineHeight).toBe(2);
     expect(v.run.mode).toBe('voice');
     expect(v.run.targetDurationSec).toBeNull();
+    expect(v.run.autoHideSec).toBe(60); // clamped
+    expect(v.run.timer).toBe('always');
     expect(v.engine).toEqual(DEFAULT_SETTINGS.engine);
     expect(v.align).toEqual({ a: 1, b: true });
   });

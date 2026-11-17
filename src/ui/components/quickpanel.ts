@@ -2,7 +2,8 @@ import { SETTINGS_LIMITS, THEMES, type SettingsStore } from '../../storage/setti
 import { THEME_LABELS, stepFontSize } from '../appearance';
 import { routeHash } from '../router';
 import { button, h } from './dom';
-import { selectField, toggleField } from './fields';
+import { rangeField, selectField, toggleField } from './fields';
+import { targetField } from '../views/settings';
 
 export interface QuickPanel {
   /** Top-bar button that opens/closes the panel. */
@@ -13,7 +14,7 @@ export interface QuickPanel {
 }
 
 /**
- * Compact in-run display panel (font size −/+, theme, mirror/flip). Lives inside the prompter
+ * Compact in-run panel (font size −/+, reading line, theme, mirror/flip, target time). Lives inside the prompter
  * view so opening it never loses the reading position.
  */
 export function createQuickPanel(settings: SettingsStore): QuickPanel {
@@ -27,6 +28,14 @@ export function createQuickPanel(settings: SettingsStore): QuickPanel {
   const smaller = button('A−', () => setSize(-1), 'plain', { ariaLabel: 'Smaller text' });
   const larger = button('A+', () => setSize(1), 'plain', { ariaLabel: 'Larger text' });
   const fields = [
+    rangeField({
+      label: 'Reading line',
+      unit: '% from top',
+      ...SETTINGS_LIMITS.readingLinePct,
+      step: 1,
+      get: () => a().readingLinePct,
+      set: (readingLinePct) => settings.update({ appearance: { readingLinePct } }),
+    }),
     selectField({
       label: 'Theme',
       options: THEMES.map((t) => ({ value: t, label: THEME_LABELS[t] })),
@@ -44,6 +53,7 @@ export function createQuickPanel(settings: SettingsStore): QuickPanel {
       set: (flipY) => settings.update({ appearance: { flipY } }),
     }),
   ];
+  const target = targetField(settings, 'Target time');
   const syncSize = () => {
     const { fontSizePx } = a();
     const L = SETTINGS_LIMITS.fontSizePx;
@@ -63,6 +73,7 @@ export function createQuickPanel(settings: SettingsStore): QuickPanel {
       larger,
     ),
     ...fields.map((f) => f.el),
+    target.el,
     h('a', { href: routeHash({ name: 'settings' }), className: 'btn' }, 'All settings…'),
   );
   panel.hidden = true;
@@ -100,6 +111,7 @@ export function createQuickPanel(settings: SettingsStore): QuickPanel {
   document.addEventListener('pointerdown', onDocPointer, true);
   document.addEventListener('keydown', onKey);
   const off = settings.on('change', ({ groups }) => {
+    if (groups.includes('run')) target.sync();
     if (!groups.includes('appearance')) return;
     syncSize();
     for (const f of fields) f.sync();

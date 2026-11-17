@@ -25,11 +25,11 @@ src/
     text/               parse.ts (markup), normalize.ts, stats.ts (word count, duration), numbers.ts, scripture.ts, index.ts (ScriptIndex builder)
     align/              similarity.ts, phonetic.ts, weights.ts, score.ts, aligner.ts, config.ts
     position/           controller.ts (PositionController)
-    timing/             timed.ts (timed scroll), pace.ts (elapsed/target pace math)
+    timing/             words.ts (SpokenWords: display-word counting), timed.ts (TimedScroller), pace.ts (pace math, RunClock, formatClock)
   engines/              webspeech.ts (+ micmeter.ts, optional level meter), simulated.ts, offline/ (M4). Implement RecognizerEngine.
                         synth/ = pure, seeded synthetic speech (plan → noise → timed events), shared by the harness and the dev simulator
   storage/              scripts.ts (ScriptStore, IndexedDB), settings.ts (SettingsStore, localStorage)
-  ui/                   DOM code: views/ (library, editor, prompter, settings; deps.ts = ViewDeps), components/ (dom, nav, notice, fields = labelled controls, quickpanel = in-run display panel), files.ts, autosave.ts, scroll.ts (ease/deadband math + rAF ScrollController), wordstate.ts (position → spoken/current word cursor), update.ts (SW update banner), follow.ts (VoiceFollowSession: engine → Aligner → PositionController; statusBadge), devsim.ts (dev simulator panel), capabilities.ts (detection, resolveEngine, meterEnabled), debuglog.ts (`?debug` on-screen recognizer log)
+  ui/                   DOM code: views/ (library, editor, prompter, settings; deps.ts = ViewDeps), components/ (dom, nav, notice, fields = labelled controls, quickpanel = in-run display panel), files.ts, autosave.ts, scroll.ts (ease/deadband math + rAF ScrollController), wordstate.ts (position → spoken/current word cursor), update.ts (SW update banner), follow.ts (VoiceFollowSession: engine → Aligner → PositionController; statusBadge), devsim.ts (dev simulator panel), capabilities.ts (detection, resolveEngine, meterEnabled), debuglog.ts (`?debug` on-screen recognizer log), run.ts (RunController: mode + pause/resume + clock; auto-hide helpers), keys.ts (pure keymap), device.ts (fullscreen, WakeLockKeeper)
   app.ts                Composition root: builds stores, engines, controller, views; wires them.
   main.ts               Entry: imports CSS, calls app, registers the service worker (vite-plugin-pwa).
 test/
@@ -92,7 +92,7 @@ interface ScriptIndex {
 
 ## Settings
 
-One typed `Settings` object (chunk 01) with defaults, persisted to `localStorage` under `cadence.settings.v1`, with a `version` field and a migrate step. Groups: `appearance` (incl. reading-line %), `run` (mode, timed WPM, target duration), `engine` (choice, lang, micMeter `auto|on|off`, privacyNoticeSeen), `align` (overrides of the aligner config; empty = defaults). Unknown/missing fields fall back to defaults; never crash on bad stored JSON.
+One typed `Settings` object (chunk 01) with defaults, persisted to `localStorage` under `cadence.settings.v1`, with a `version` field and a migrate step. Groups: `appearance` (incl. reading-line %), `run` (mode, timed WPM, target duration, autoHideSec, timer display), `engine` (choice, lang, micMeter `auto|on|off`, privacyNoticeSeen), `align` (overrides of the aligner config; empty = defaults). Unknown/missing fields fall back to defaults; never crash on bad stored JSON.
 
 ## Conventions
 

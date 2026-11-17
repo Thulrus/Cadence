@@ -356,9 +356,22 @@ textarea:focus-visible {
   display: flex;
   flex-direction: column;
   position: relative;
+  /* Space the overlaying bar covers (--bar-h is measured by the view); 0 while hidden. */
+  --bar-off: var(--bar-h, 0px);
 }
 
+.view-prompter[data-controls='hidden'] {
+  --bar-off: 0px;
+}
+
+/* The bar overlays the text instead of taking layout space, so hiding it never resizes the
+   stage (which would move the text under the reader's eyes). */
 .prompter-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 4;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -366,6 +379,114 @@ textarea:focus-visible {
   padding: 0.25rem 0.5rem;
   background: var(--chrome-bg);
   border-bottom: 1px solid var(--chrome-border);
+  transition:
+    transform 0.25s ease,
+    opacity 0.25s ease;
+}
+
+.view-prompter[data-controls='hidden'] .prompter-bar {
+  transform: translateY(-100%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.mode-switch,
+.wpm-group {
+  display: inline-flex;
+  align-items: center;
+}
+
+.mode-btn {
+  border-radius: 0;
+  margin-left: -1px;
+  padding-inline: 0.9rem;
+}
+
+.mode-btn:first-child {
+  border-radius: 0.4rem 0 0 0.4rem;
+}
+
+.mode-btn:last-of-type {
+  border-radius: 0 0.4rem 0.4rem 0;
+}
+
+.mode-btn[aria-pressed='true'] {
+  background: color-mix(in srgb, var(--accent) 30%, var(--chrome-bg));
+  border-color: var(--accent);
+  font-weight: 600;
+  position: relative;
+}
+
+.wpm-group .btn {
+  min-width: 48px;
+  justify-content: center;
+  font-size: 1.2em;
+}
+
+.wpm-value {
+  min-width: 5.5em;
+  text-align: center;
+  color: var(--chrome-fg);
+  font-variant-numeric: tabular-nums;
+}
+
+.fs-btn {
+  min-width: 48px;
+  justify-content: center;
+  font-size: 1.2em;
+}
+
+.fs-btn[aria-pressed='true'] {
+  outline: 2px solid var(--accent);
+}
+
+.run-btn {
+  min-height: 56px;
+  min-width: 7rem;
+  justify-content: center;
+  font-size: 1.15em;
+  white-space: nowrap;
+}
+
+.run-btn[aria-pressed='true'] {
+  background: var(--chrome-bg);
+  color: var(--chrome-fg);
+  border: 2px solid var(--accent);
+}
+
+/* Elapsed timer + pace (chunk 15): small, unobtrusive, outside the mirrored stage. */
+.run-timer {
+  position: absolute;
+  right: 0.75rem;
+  bottom: calc(0.5rem + env(safe-area-inset-bottom));
+  display: flex;
+  gap: 0.6rem;
+  align-items: baseline;
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--chrome-bg) 80%, transparent);
+  color: var(--chrome-fg);
+  font-size: 0.95rem;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.75;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.view-prompter[data-controls='hidden'] .run-timer[data-display='with-controls'] {
+  display: none;
+}
+
+.run-timer-pace[data-state='behind'] {
+  color: #e5484d;
+}
+
+.run-timer-pace[data-state='ahead'] {
+  color: #c99a2e;
+}
+
+.run-timer-pace[data-state='on-pace'] {
+  color: #2e9e5b;
 }
 
 .prompter-title {
@@ -378,8 +499,8 @@ textarea:focus-visible {
   text-align: center;
 }
 
-/* Area below the bar: hosts the stage and every overlay, so overlays never sit under the
-   bar and can size themselves to the space that's actually left. */
+/* Hosts the stage and every overlay. The bar overlays its top; overlays offset themselves by
+   --bar-off so they never sit under it. */
 .prompter-main {
   flex: 1;
   min-height: 0;
@@ -525,7 +646,7 @@ textarea:focus-visible {
 .follow-toast {
   position: absolute;
   left: 50%;
-  top: 0.75rem;
+  top: calc(var(--bar-off) + 0.75rem);
   transform: translateX(-50%);
   max-width: calc(100% - 1rem);
   display: flex;
@@ -550,7 +671,7 @@ textarea:focus-visible {
 .follow-lost {
   position: absolute;
   right: 0.75rem;
-  top: 0.75rem;
+  top: calc(var(--bar-off) + 0.75rem);
   padding: 0.25rem 0.75rem;
   border-radius: 999px;
   background: var(--chrome-bg);
@@ -785,11 +906,11 @@ input[type='range']:focus-visible {
 /* ---- Prompter quick panel (chunk 05) ---- */
 .quick-panel {
   position: absolute;
-  top: 0.5rem;
+  top: calc(var(--bar-off) + 0.5rem);
   right: 0.5rem;
-  z-index: 3;
+  z-index: 5;
   /* Never taller than the space below the bar; scroll (incl. touch drag) for the rest. */
-  max-height: calc(100% - 1rem - env(safe-area-inset-bottom));
+  max-height: calc(100% - var(--bar-off) - 1rem - env(safe-area-inset-bottom));
   overflow-y: auto;
   overscroll-behavior: contain;
   touch-action: pan-y;
@@ -842,12 +963,6 @@ input[type='range']:focus-visible {
 }
 
 /* ---- Listening controls (chunk 13) ---- */
-.listen-btn {
-  min-height: 48px;
-  padding-inline: 1.25rem;
-  white-space: nowrap;
-}
-
 .listen-badge {
   padding: 0.2rem 0.6rem;
   border-radius: 999px;
@@ -924,11 +1039,43 @@ input[type='range']:focus-visible {
   }
 }
 
+/* Short screens (landscape phones): one slim row, so the text keeps the height. */
+@media (max-height: 30rem) {
+  .prompter-bar {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    gap: 0.35rem;
+    padding: 0.15rem 0.35rem;
+    font-size: 0.9rem;
+  }
+
+  .prompter-bar .btn {
+    min-height: 40px;
+    padding: 0.25rem 0.6rem;
+    flex-shrink: 0;
+  }
+
+  .prompter-bar .run-btn {
+    min-height: 40px;
+    min-width: 5.5rem;
+  }
+
+  .prompter-title,
+  .listen-meter {
+    display: none;
+  }
+
+  .wpm-value {
+    min-width: 4.5em;
+  }
+}
+
 /* ---- ?debug diagnostic log ---- */
 .debug-panel {
   position: absolute;
   right: 0.5rem;
-  bottom: calc(0.5rem + env(safe-area-inset-bottom));
+  bottom: calc(2.5rem + env(safe-area-inset-bottom));
   width: min(28rem, calc(100% - 1rem));
   max-height: 40%;
   overflow-y: auto;

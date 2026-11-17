@@ -22,8 +22,8 @@ Milestones follow SPEC §12. Each milestone ends with `main` deployable. Some sp
 | 11  | [Simulated engine & ASR-noise harness](chunks/11-simulated-harness.md)              | M2        | DONE   |
 | 12  | [Voice-follow integration](chunks/12-voice-integration.md)                          | M2        | DONE   |
 | 13  | [Web Speech engine & status UI](chunks/13-webspeech-engine.md)                      | M2 ✅     | DONE   |
-| 14  | [Run controls, timed mode, keyboard/clicker](chunks/14-run-controls.md)             | M3        | TODO   |
-| 15  | [Fullscreen, wake lock, timer/pace, tuning panel](chunks/15-device-timer-tuning.md) | M3        | TODO   |
+| 14  | [Run controls, timed mode, keyboard/clicker](chunks/14-run-controls.md)             | M3        | DONE   |
+| 15  | [Fullscreen, wake lock, timer/pace, tuning panel](chunks/15-device-timer-tuning.md) | M3        | DONE   |
 | 16  | [v1 hardening, samples, docs, acceptance pass](chunks/16-v1-hardening.md)           | M3 ✅     | TODO   |
 | 17  | [Offline ASR evaluation spike](chunks/17-offline-asr-spike.md)                      | M4        | TODO   |
 | 18  | [Offline engine integration](chunks/18-offline-engine.md)                           | M4 ✅     | TODO   |

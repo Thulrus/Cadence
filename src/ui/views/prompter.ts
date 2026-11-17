@@ -1,16 +1,35 @@
 import { resolveConfig } from '../../core/align/config';
 import { PositionController } from '../../core/position/controller';
 import { buildScriptIndex, positionForWord } from '../../core/text/index';
+import { formatClock, pace } from '../../core/timing/pace';
+import { TimedScroller } from '../../core/timing/timed';
+import { SpokenWords } from '../../core/timing/words';
 import { parseScript } from '../../core/text/parse';
 import type { ScriptIndex } from '../../core/text/types';
 import type { EngineStatus, PositionChange, RecognizerEngine } from '../../core/types';
 import { MicMeter } from '../../engines/micmeter';
 import { getSpeechRecognition, WebSpeechEngine } from '../../engines/webspeech';
 import { SimulatedEngine } from '../../engines/simulated';
-import type { AppearanceSettings } from '../../storage/settings';
+import {
+  RUN_MODES,
+  SETTINGS_LIMITS,
+  type AppearanceSettings,
+  type RunMode,
+  type RunSettings,
+} from '../../storage/settings';
+import { stepFontSize } from '../appearance';
 import { button, h } from '../components/dom';
 import { createQuickPanel } from '../components/quickpanel';
 import { createDebugPanel, debugEnabled } from '../debuglog';
+import {
+  exitFullscreen,
+  fullscreenSupported,
+  isFullscreen,
+  toggleFullscreen,
+  WakeLockKeeper,
+} from '../device';
+import { actionForKey, isTypingTarget } from '../keys';
+import { canAutoHide, nearEdge, RunController, type RunDriver } from '../run';
 import { createSimPanel, DEVSIM_CONFIG, simEnabled } from '../devsim';
 import { browserEnv, detectCapabilities, meterEnabled, resolveEngine } from '../capabilities';
 import { jumpMessage, linesBetween, statusBadge, TimingStats, VoiceFollowSession } from '../follow';
@@ -26,6 +45,7 @@ import {
 } from '../scroll';
 import { cursorForPosition, spokenDelta } from '../wordstate';
 import { attempt, type ViewDeps } from './deps';
+import { RUN_MODE_LABELS } from './settings';
 
 export const PROMPTER_CONFIG = {
   /** Two words are on the same visual line if their tops differ by less than this × height. */
@@ -37,7 +57,17 @@ export const PROMPTER_CONFIG = {
   /** How long capability notes (voice unavailable, iOS caveat) stay up. */
   noteMs: 8000,
   privacyUrl: 'https://github.com/Thulrus/Cadence#privacy',
+  /** Timed-scroll tick interval (position advances per word, so this only bounds latency). */
+  timedTickMs: 100,
+  /** Run timer / pace refresh interval. */
+  timerRefreshMs: 250,
+  /** WPM change per −/+ press in the bar. */
+  wpmStep: 10,
+  /** How often a blocked auto-hide (toast or panel open) re-checks. */
+  autoHideRetryMs: 1000,
 } as const;
+
+const MS_PER_SEC = 1000;
 
 const CLS = {
   spoken: 'w-spoken',
@@ -114,13 +144,62 @@ export function createPrompterView(deps: ViewDeps): View {
       });
       const quick = createQuickPanel(deps.settings);
       cleanups.push(() => quick.destroy());
+      const runSettings = (): RunSettings => deps.settings.get().run;
+
+      // Mode switch (Voice / Timed / Manual), timed WPM −/+, run button, fullscreen.
+      const modeBtns = new Map<RunMode, HTMLButtonElement>();
+      for (const m of RUN_MODES) {
+        modeBtns.set(
+          m,
+          button(RUN_MODE_LABELS[m], () => chooseMode(m), 'plain', {
+            className: 'btn mode-btn',
+            dataset: { mode: m },
+          }),
+        );
+      }
+      const modeGroup = h(
+        'div',
+        { className: 'mode-switch', role: 'group', ariaLabel: 'Mode' },
+        ...modeBtns.values(),
+      );
+      const wpmOut = h('output', { className: 'wpm-value', ariaLive: 'polite' });
+      const stepWpm = (n: number) => {
+        const L = SETTINGS_LIMITS.timedWpm;
+        const next = runSettings().timedWpm + n * PROMPTER_CONFIG.wpmStep;
+        deps.settings.update({ run: { timedWpm: Math.min(L.max, Math.max(L.min, next)) } });
+      };
+      const wpmGroup = h(
+        'div',
+        { className: 'wpm-group', role: 'group', ariaLabel: 'Timed scroll speed' },
+        button('−', () => stepWpm(-1), 'plain', { ariaLabel: 'Slower' }),
+        wpmOut,
+        button('+', () => stepWpm(1), 'plain', { ariaLabel: 'Faster' }),
+      );
+      const fsBtn = button('⛶', () => void toggleFullscreen(), 'plain', {
+        className: 'btn fs-btn',
+        ariaLabel: 'Fullscreen',
+        title: 'Fullscreen (F)',
+        hidden: !fullscreenSupported(),
+      });
+      const runBtn = button('Start', () => run.toggle(), 'primary', {
+        className: 'btn btn-primary run-btn',
+      });
       const bar = h(
         'header',
         { className: 'prompter-bar' },
         h('a', { href: routeHash({ name: 'library' }), className: 'btn' }, '‹ Back'),
         h('span', { className: 'prompter-title' }, rec.title),
+        modeGroup,
+        wpmGroup,
+        fsBtn,
         quick.toggle,
+        runBtn,
       );
+      // A pointer click leaves focus on the button, so a later Space (pause) would click it
+      // again; drop focus after pointer clicks. Keyboard activation keeps focus.
+      bar.addEventListener('click', (e) => {
+        if (e.detail > 0) (e.target as Element).closest('button')?.blur();
+      });
       const toastText = h('span', {});
       const toast = h(
         'div',
@@ -138,8 +217,8 @@ export function createPrompterView(deps: ViewDeps): View {
         'Lost — tap a word to resync',
       );
       lostBadge.setAttribute('role', 'status');
-      // Everything that floats over the text lives in stageArea, which starts below the
-      // bar, so overlays size to the space actually left (the bar may wrap on narrow screens).
+      // Everything that floats over the text lives in stageArea. The bar overlays its top
+      // (CSS --bar-off), so auto-hiding the bar never resizes the stage.
       const stageArea = h(
         'div',
         { className: 'prompter-main' },
@@ -149,8 +228,19 @@ export function createPrompterView(deps: ViewDeps): View {
         toast,
         lostBadge,
       );
-      root = h('section', { className: 'view-prompter' }, bar, stageArea);
-      container.append(root);
+      const timerClock = h('span', { className: 'run-timer-clock' }, '0:00');
+      const timerPace = h('span', { className: 'run-timer-pace' });
+      const timerEl = h('div', { className: 'run-timer' }, timerClock, timerPace);
+      timerEl.setAttribute('aria-label', 'Elapsed time');
+      stageArea.append(timerEl);
+      const view = h('section', { className: 'view-prompter' }, stageArea, bar);
+      root = view;
+      container.append(view);
+      const barRo = new ResizeObserver(() =>
+        view.style.setProperty('--bar-h', `${bar.offsetHeight}px`),
+      );
+      barRo.observe(bar);
+      cleanups.push(() => barRo.disconnect());
 
       const scroll = new ScrollController(scroller);
       let appearance: AppearanceSettings = deps.settings.get().appearance;
@@ -185,10 +275,18 @@ export function createPrompterView(deps: ViewDeps): View {
       }
 
       let session: VoiceFollowSession | null = null;
+      // Assigned in the run section below; declared here because earlier handlers use them.
+      let timed: TimedScroller;
+      let run: RunController;
+      let controlsHidden = (): boolean => false;
+      let showControls = (): void => {};
+      let scheduleHide = (): void => {};
       let toastTimer: ReturnType<typeof setTimeout> | undefined;
       function hideToast(): void {
         clearTimeout(toastTimer);
+        if (toast.hidden) return;
         toast.hidden = true;
+        scheduleHide(); // the toast was blocking auto-hide
       }
       function showToast(message: string): void {
         clearTimeout(toastTimer);
@@ -272,6 +370,7 @@ export function createPrompterView(deps: ViewDeps): View {
 
       cleanups.push(
         ctl.events.on('change', (c: PositionChange) => {
+          if (c.source !== 'timed') timed.setPosition(c.position);
           if (c.source !== 'align') hideToast();
           setCursor(cursorForPosition(index, c.position));
           follow({ backward: c.previous > c.position, force: false }, 'ease');
@@ -282,6 +381,12 @@ export function createPrompterView(deps: ViewDeps): View {
         }),
         deps.settings.on('change', ({ settings, groups }) => {
           if (groups.includes('align')) session?.setConfig(resolveConfig(settings.align));
+          if (groups.includes('run')) {
+            timed.setWpm(settings.run.timedWpm);
+            renderRun();
+            renderTimer();
+            scheduleHide();
+          }
           if (!groups.includes('appearance')) return;
           appearance = settings.appearance;
           relayout('jump');
@@ -333,6 +438,13 @@ export function createPrompterView(deps: ViewDeps): View {
         const g = classifyGesture(press.moved, e.timeStamp - press.t);
         press = null;
         if (g !== 'tap') return;
+        if (
+          controlsHidden() &&
+          nearEdge(e.clientY - view.getBoundingClientRect().top, view.clientHeight)
+        ) {
+          showControls();
+          return;
+        }
         const target = (e.target as Element | null)?.closest<HTMLElement>('[data-w]');
         if (!target) return;
         ctl.set(positionForWord(index, Number(target.dataset.w)), 'manual');
@@ -347,6 +459,12 @@ export function createPrompterView(deps: ViewDeps): View {
         press = null;
       };
       const onWheel = () => grab();
+      const onHover = (e: PointerEvent) => {
+        // Desktop: moving the mouse to the top edge brings the controls back.
+        if (e.pointerType !== 'mouse' || !controlsHidden()) return;
+        if (e.clientY - view.getBoundingClientRect().top < bar.offsetHeight) showControls();
+      };
+      scroller.addEventListener('pointermove', onHover);
 
       scroller.addEventListener('pointerdown', onDown);
       scroller.addEventListener('pointermove', onMove);
@@ -447,13 +565,8 @@ export function createPrompterView(deps: ViewDeps): View {
       const meterFill = h('span', { className: 'listen-meter-fill' });
       const meterEl = h('span', { className: 'listen-meter', hidden: true }, meterFill);
       meterEl.setAttribute('aria-hidden', 'true');
-      const listenBtn = button('Start listening', () => toggleListening(), 'primary', {
-        className: 'btn btn-primary listen-btn',
-        hidden: !engine,
-      });
-      bar.insertBefore(badge, quick.toggle);
-      bar.insertBefore(meterEl, quick.toggle);
-      bar.insertBefore(listenBtn, quick.toggle);
+      bar.insertBefore(badge, fsBtn);
+      bar.insertBefore(meterEl, fsBtn);
 
       let engineStatus: { status: EngineStatus; message?: string } = { status: 'idle' };
       function renderStatus(): void {
@@ -462,8 +575,7 @@ export function createPrompterView(deps: ViewDeps): View {
         badge.textContent = b.label;
         badge.dataset.state = b.state;
         badge.title = engineStatus.message ?? '';
-        listenBtn.textContent = b.active ? 'Pause listening' : 'Start listening';
-        listenBtn.setAttribute('aria-pressed', String(b.active));
+        run?.driverActive('voice', b.active);
         meterEl.hidden = !(meterOn && b.active);
         if (!b.active) meterFill.style.transform = 'scaleX(0)';
         lostBadge.hidden = !(lost && b.active);
@@ -508,14 +620,15 @@ export function createPrompterView(deps: ViewDeps): View {
       privacy.addEventListener('pointerdown', (e) => e.stopPropagation());
       stageArea.append(privacy);
 
-      function toggleListening(): void {
+      /** Voice driver start: re-centre on the current position, then listen. */
+      function startListening(): void {
         if (!session) return;
-        if (statusBadge(engineStatus.status, false).active) return session.stop();
+        session.resync();
         if (engine?.id === 'webspeech' && !deps.settings.get().engine.privacyNoticeSeen) {
           privacy.hidden = false;
           return;
         }
-        void session.start(); // inside the click: Web Speech needs a user gesture
+        void session.start(); // inside the click/key: Web Speech needs a user gesture
       }
 
       if (engine) {
@@ -542,6 +655,202 @@ export function createPrompterView(deps: ViewDeps): View {
         }
       }
 
+      // ---- run: mode, pause/resume, timed scroll, clock ----
+      const words = new SpokenWords(index);
+      timed = new TimedScroller(words, runSettings().timedWpm);
+      let timedLoop: ReturnType<typeof setInterval> | undefined;
+      const stopTimedLoop = () => clearInterval(timedLoop);
+      const drivers: Record<RunMode, RunDriver> = {
+        voice: { deferred: true, start: startListening, stop: () => session?.stop() },
+        timed: {
+          start: () => {
+            timed.setPosition(ctl.position);
+            if (timed.finished) return;
+            timed.start(performance.now());
+            stopTimedLoop();
+            timedLoop = setInterval(() => {
+              const p = timed.tick(performance.now());
+              if (p !== null) ctl.set(p, 'timed');
+              if (timed.finished) run.pause();
+            }, PROMPTER_CONFIG.timedTickMs);
+          },
+          stop: () => {
+            timed.pause();
+            stopTimedLoop();
+          },
+        },
+        manual: { start: () => {}, stop: () => {} },
+      };
+      // Without a voice engine the Voice mode is hidden and a stored "voice" runs as manual
+      // (the stored setting is left alone, so it comes back where voice works).
+      const stored = runSettings().mode;
+      modeBtns.get('voice')!.hidden = !session;
+      run = new RunController(stored === 'voice' && !session ? 'manual' : stored, drivers, () =>
+        performance.now(),
+      );
+      cleanups.push(() => drivers[run.mode].stop(), stopTimedLoop);
+
+      function chooseMode(m: RunMode): void {
+        run.setMode(m);
+        deps.settings.update({ run: { mode: m } });
+      }
+
+      const wake = new WakeLockKeeper((msg) =>
+        deps.notices.show(msg, 'info', PROMPTER_CONFIG.noteMs),
+      );
+      cleanups.push(() => wake.destroy());
+
+      function renderRun(): void {
+        const { mode, active } = run;
+        view.dataset.mode = mode;
+        for (const [m, b] of modeBtns) b.setAttribute('aria-pressed', String(m === mode));
+        runBtn.textContent = active ? 'Pause' : run.started ? 'Resume' : 'Start';
+        runBtn.setAttribute('aria-pressed', String(active));
+        runBtn.title =
+          mode === 'voice'
+            ? 'Start/pause listening (Space)'
+            : mode === 'timed'
+              ? 'Start/pause scrolling (Space)'
+              : 'Start/pause the timer (Space)';
+        wpmGroup.hidden = mode !== 'timed';
+        wpmOut.value = `${runSettings().timedWpm} wpm`;
+        badge.hidden = !session || mode !== 'voice';
+      }
+
+      function renderTimer(): void {
+        const { timer, targetDurationSec } = runSettings();
+        timerEl.hidden = timer === 'off';
+        timerEl.dataset.display = timer;
+        const elapsed = run.elapsed();
+        timerClock.textContent = formatClock(elapsed);
+        const p =
+          targetDurationSec === null
+            ? null
+            : pace(elapsed, words.fraction(ctl.position), targetDurationSec * MS_PER_SEC);
+        timerPace.textContent = p?.label ?? '';
+        timerPace.hidden = !p?.label;
+        timerPace.dataset.state = p?.state ?? '';
+        timerEl.title = p?.projectedMs
+          ? `Projected total ${formatClock(p.projectedMs)} (target ${formatClock(targetDurationSec! * MS_PER_SEC)})`
+          : '';
+      }
+      const timerLoop = setInterval(renderTimer, PROMPTER_CONFIG.timerRefreshMs);
+      cleanups.push(() => clearInterval(timerLoop));
+
+      const resetTimer = button('Reset timer', () => run.resetClock());
+      quick.panel.insertBefore(resetTimer, quick.panel.lastElementChild);
+
+      // ---- auto-hiding controls ----
+      let hideTimer: ReturnType<typeof setTimeout> | undefined;
+      let pointerInBar = false;
+      controlsHidden = () => view.dataset.controls === 'hidden';
+      const overlayOpen = () => !quick.panel.hidden || !toast.hidden || !privacy.hidden;
+      const hideAllowed = () =>
+        canAutoHide({
+          active: run.active,
+          delayMs: runSettings().autoHideSec * MS_PER_SEC,
+          overlayOpen: overlayOpen(),
+          pointerInControls: pointerInBar || bar.contains(document.activeElement),
+        });
+      showControls = () => {
+        if (controlsHidden()) {
+          view.dataset.controls = 'shown';
+          bar.inert = false;
+        }
+        scheduleHide();
+      };
+      scheduleHide = () => {
+        clearTimeout(hideTimer);
+        if (!run?.active) return;
+        const delay = runSettings().autoHideSec * MS_PER_SEC;
+        if (delay <= 0) return;
+        hideTimer = setTimeout(() => {
+          if (hideAllowed()) {
+            view.dataset.controls = 'hidden';
+            bar.inert = true;
+            quick.close();
+          } else if (run.active) {
+            hideTimer = setTimeout(() => scheduleHide(), PROMPTER_CONFIG.autoHideRetryMs);
+          }
+        }, delay);
+      };
+      bar.addEventListener('pointerdown', () => scheduleHide());
+      bar.addEventListener('pointerenter', () => (pointerInBar = true));
+      bar.addEventListener('pointerleave', () => {
+        pointerInBar = false;
+        scheduleHide();
+      });
+      bar.addEventListener('focusin', () => scheduleHide());
+      cleanups.push(() => clearTimeout(hideTimer));
+
+      run.events.on('change', ({ active }) => {
+        if (active) wake.enable(); // held from the first start until leaving the prompter
+        if (active) scheduleHide();
+        else showControls();
+        renderRun();
+        renderTimer();
+      });
+      cleanups.push(() => run.events.clear());
+
+      // ---- fullscreen ----
+      const onFs = () => {
+        fsBtn.setAttribute('aria-pressed', String(isFullscreen()));
+        fsBtn.ariaLabel = isFullscreen() ? 'Exit fullscreen' : 'Fullscreen';
+      };
+      document.addEventListener('fullscreenchange', onFs);
+      cleanups.push(() => document.removeEventListener('fullscreenchange', onFs), exitFullscreen);
+      onFs();
+
+      // ---- keyboard / clicker (keys.ts) ----
+      const nudge = (fn: () => void) => {
+        fn();
+        ctl.attach();
+        follow({ backward: true, force: true }, 'ease');
+      };
+      const onKey = (e: KeyboardEvent) => {
+        if (e.defaultPrevented || !privacy.hidden) return;
+        if (isTypingTarget(e.target as HTMLElement | null, e.key)) return;
+        const action = actionForKey(e);
+        if (!action) return;
+        e.preventDefault();
+        if (e.repeat && (action === 'toggle-run' || action === 'fullscreen')) return;
+        switch (action) {
+          case 'toggle-run':
+            return run.toggle();
+          case 'line-next':
+            return nudge(() => ctl.nudgeLines(1));
+          case 'line-prev':
+            return nudge(() => ctl.nudgeLines(-1));
+          case 'para-next':
+            return nudge(() => ctl.nudgeParagraphs(1));
+          case 'para-prev':
+            return nudge(() => ctl.nudgeParagraphs(-1));
+          case 'home':
+            return nudge(() => ctl.reset());
+          case 'font-smaller':
+          case 'font-larger':
+            return deps.settings.update({
+              appearance: {
+                fontSizePx: stepFontSize(
+                  appearance.fontSizePx,
+                  action === 'font-larger' ? 1 : -1,
+                  SETTINGS_LIMITS.fontSizePx,
+                ),
+              },
+            });
+          case 'fullscreen':
+            if (fullscreenSupported()) void toggleFullscreen();
+            return;
+          case 'show-controls':
+            return showControls();
+        }
+      };
+      document.addEventListener('keydown', onKey);
+      cleanups.push(() => document.removeEventListener('keydown', onKey));
+
+      view.dataset.controls = 'shown';
+      renderRun();
+      renderTimer();
       setCursor(cursorForPosition(index, ctl.position));
       relayout('jump');
     },

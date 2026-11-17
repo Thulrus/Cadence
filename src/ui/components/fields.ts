@@ -152,3 +152,57 @@ export function toggleField(o: ToggleFieldOptions): Field {
   sync();
   return { el, sync };
 }
+
+export interface NumberFieldOptions {
+  label: string;
+  min: number;
+  max: number;
+  step: number;
+  unit?: string;
+  hint?: string;
+  /** Empty box allowed, meaning "none" (get/set use null). */
+  optional?: boolean;
+  placeholder?: string;
+  get(): number | null;
+  set(v: number | null): void;
+}
+
+/** A labelled number box, committed on change and clamped to [min, max]. */
+export function numberField(o: NumberFieldOptions): Field {
+  const id = nextId('number');
+  const input = h('input', {
+    type: 'number',
+    id,
+    className: 'field-number',
+    inputMode: 'decimal',
+    min: String(o.min),
+    max: String(o.max),
+    step: String(o.step),
+    placeholder: o.placeholder ?? '',
+  });
+  input.addEventListener('change', () => {
+    const raw = input.value.trim();
+    const v = Number(raw);
+    if (raw === '' && o.optional) o.set(null);
+    else if (raw !== '' && Number.isFinite(v)) o.set(Math.min(o.max, Math.max(o.min, v)));
+    sync();
+  });
+  function sync(): void {
+    const v = o.get();
+    input.value = v === null ? '' : String(+v.toFixed(6));
+  }
+  const el = h(
+    'div',
+    { className: 'field field-numberbox' },
+    h('label', { htmlFor: id }, o.label),
+    h(
+      'div',
+      { className: 'field-row' },
+      input,
+      o.unit ? h('span', { className: 'field-unit' }, o.unit) : null,
+    ),
+    o.hint ? h('p', { className: 'field-hint' }, o.hint) : null,
+  );
+  sync();
+  return { el, sync };
+}

@@ -11,6 +11,10 @@ export type HighlightMode = (typeof HIGHLIGHT_MODES)[number];
 export const RUN_MODES = ['voice', 'timed', 'manual'] as const;
 export type RunMode = (typeof RUN_MODES)[number];
 
+export const TIMER_DISPLAYS = ['always', 'with-controls', 'off'] as const;
+/** Run timer: stays visible in a corner, hides with the controls, or never shown. */
+export type TimerDisplay = (typeof TIMER_DISPLAYS)[number];
+
 export const ENGINE_CHOICES = ['auto', 'webspeech', 'offline'] as const;
 export type EngineChoice = (typeof ENGINE_CHOICES)[number];
 
@@ -37,9 +41,13 @@ export interface AppearanceSettings {
 }
 
 export interface RunSettings {
+  /** Mode the prompter opens in; also the last mode chosen in the prompter. */
   mode: RunMode;
   timedWpm: number;
   targetDurationSec: number | null;
+  /** Hide the controls after this many seconds without interaction during a run; 0 = never. */
+  autoHideSec: number;
+  timer: TimerDisplay;
 }
 
 export interface EngineSettings {
@@ -76,6 +84,7 @@ export const SETTINGS_LIMITS = {
   readingLinePct: { min: 10, max: 90 },
   timedWpm: { min: 40, max: 400 },
   targetDurationSec: { min: 1, max: 24 * 60 * 60 },
+  autoHideSec: { min: 0, max: 60 },
 } as const;
 
 export const DEFAULT_SETTINGS: Readonly<Settings> = Object.freeze({
@@ -93,7 +102,13 @@ export const DEFAULT_SETTINGS: Readonly<Settings> = Object.freeze({
     highlight: 'word',
     readingLinePct: 33,
   },
-  run: { mode: 'voice', timedWpm: 150, targetDurationSec: null },
+  run: {
+    mode: 'voice',
+    timedWpm: 150,
+    targetDurationSec: null,
+    autoHideSec: 3,
+    timer: 'always',
+  },
   engine: { choice: 'auto', lang: 'en-US', micMeter: 'auto', privacyNoticeSeen: false },
   align: {},
 } satisfies Settings);
@@ -161,6 +176,8 @@ function sanitizeRun(raw: unknown, base: RunSettings): RunSettings {
     mode: oneOf(r.mode, RUN_MODES, base.mode),
     timedWpm: num(r.timedWpm, base.timedWpm, SETTINGS_LIMITS.timedWpm),
     targetDurationSec: target,
+    autoHideSec: num(r.autoHideSec, base.autoHideSec, SETTINGS_LIMITS.autoHideSec),
+    timer: oneOf(r.timer, TIMER_DISPLAYS, base.timer),
   };
 }
 

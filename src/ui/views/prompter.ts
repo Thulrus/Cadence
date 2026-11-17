@@ -1,11 +1,15 @@
+import { resolveConfig } from '../../core/align/config';
 import { PositionController } from '../../core/position/controller';
 import { buildScriptIndex, positionForWord } from '../../core/text/index';
 import { parseScript } from '../../core/text/parse';
 import type { ScriptIndex } from '../../core/text/types';
-import type { PositionChange } from '../../core/types';
+import type { PositionChange, RecognizerEngine } from '../../core/types';
+import { SimulatedEngine } from '../../engines/simulated';
 import type { AppearanceSettings } from '../../storage/settings';
 import { button, h } from '../components/dom';
 import { createQuickPanel } from '../components/quickpanel';
+import { createSimPanel, DEVSIM_CONFIG, simEnabled } from '../devsim';
+import { jumpMessage, linesBetween, TimingStats, VoiceFollowSession } from '../follow';
 import { routeHash, type Route, type View } from '../router';
 import {
   GESTURE_CONFIG,
@@ -24,6 +28,8 @@ export const PROMPTER_CONFIG = {
   sameLineFraction: 0.5,
   /** Bottom spacer as a fraction of viewport height, so the last line can reach the reading line. */
   bottomSpacerFraction: 1,
+  /** How long the "Jumped ahead N lines — Undo" toast stays up. */
+  jumpToastMs: 5000,
 } as const;
 
 const CLS = {
@@ -108,7 +114,33 @@ export function createPrompterView(deps: ViewDeps): View {
         h('span', { className: 'prompter-title' }, rec.title),
         quick.toggle,
       );
-      root = h('section', { className: 'view-prompter' }, bar, quick.panel, stage, resume);
+      const toastText = h('span', {});
+      const toast = h(
+        'div',
+        { className: 'follow-toast', hidden: true },
+        toastText,
+        button('Undo', () => {
+          hideToast();
+          session?.undoJump();
+        }),
+      );
+      toast.setAttribute('role', 'status');
+      const lostBadge = h(
+        'div',
+        { className: 'follow-lost', hidden: true },
+        'Lost — tap a word to resync',
+      );
+      lostBadge.setAttribute('role', 'status');
+      root = h(
+        'section',
+        { className: 'view-prompter' },
+        bar,
+        quick.panel,
+        stage,
+        resume,
+        toast,
+        lostBadge,
+      );
       container.append(root);
 
       const scroll = new ScrollController(scroller);
@@ -143,7 +175,21 @@ export function createPrompterView(deps: ViewDeps): View {
         return spans.slice(a, b + 1);
       }
 
-      ctl.setLineStarts(() => {
+      let session: VoiceFollowSession | null = null;
+      let toastTimer: ReturnType<typeof setTimeout> | undefined;
+      function hideToast(): void {
+        clearTimeout(toastTimer);
+        toast.hidden = true;
+      }
+      function showToast(message: string): void {
+        clearTimeout(toastTimer);
+        toastText.textContent = message;
+        toast.hidden = false;
+        toastTimer = setTimeout(hideToast, PROMPTER_CONFIG.jumpToastMs);
+      }
+      cleanups.push(hideToast);
+
+      const lineStarts = (): number[] => {
         if (lineStartsCache) return lineStartsCache;
         const { words } = index.script;
         const starts: number[] = [];
@@ -163,7 +209,8 @@ export function createPrompterView(deps: ViewDeps): View {
           }
         }
         return (lineStartsCache = starts);
-      });
+      };
+      ctl.setLineStarts(lineStarts);
 
       /** The span to keep at the reading line: current word, or the last word at the end. */
       const focusSpan = (): HTMLElement | undefined => spans[Math.min(cursor, spans.length - 1)];
@@ -216,6 +263,7 @@ export function createPrompterView(deps: ViewDeps): View {
 
       cleanups.push(
         ctl.events.on('change', (c: PositionChange) => {
+          if (c.source !== 'align') hideToast();
           setCursor(cursorForPosition(index, c.position));
           follow({ backward: c.previous > c.position, force: false }, 'ease');
         }),
@@ -224,6 +272,7 @@ export function createPrompterView(deps: ViewDeps): View {
           if (following) follow({ backward: true, force: true }, 'ease');
         }),
         deps.settings.on('change', ({ settings, groups }) => {
+          if (groups.includes('align')) session?.setConfig(resolveConfig(settings.align));
           if (!groups.includes('appearance')) return;
           appearance = settings.appearance;
           relayout('jump');
@@ -279,6 +328,7 @@ export function createPrompterView(deps: ViewDeps): View {
         if (!target) return;
         ctl.set(positionForWord(index, Number(target.dataset.w)), 'manual');
         ctl.attach();
+        session?.resync(); // also clears "lost" when the same word is re-tapped
         // Same position re-tapped while following: still ease back to it.
         follow({ backward: true, force: true }, 'ease');
       };
@@ -303,6 +353,48 @@ export function createPrompterView(deps: ViewDeps): View {
         () => scroll.stop(),
         () => ctl.events.clear(),
       );
+
+      // ---- voice follow ----
+      const devTools = simEnabled(location.search, import.meta.env.DEV);
+      function startFollow(engine: RecognizerEngine): VoiceFollowSession {
+        const s = new VoiceFollowSession(
+          engine,
+          index,
+          ctl,
+          resolveConfig(deps.settings.get().align),
+        );
+        s.events.on('jump', ({ previous, position }) =>
+          showToast(
+            jumpMessage(linesBetween(lineStarts(), previous, position), position > previous),
+          ),
+        );
+        s.events.on('lost', ({ lost }) => (lostBadge.hidden = !lost));
+        if (devTools) {
+          const stats = new TimingStats(DEVSIM_CONFIG.timingWindow);
+          s.events.on('timing', ({ ms }) => {
+            const sum = stats.add(ms);
+            if (sum) {
+              console.debug(
+                `[cadence] result → align → render: mean ${sum.mean.toFixed(2)} ms, max ${sum.max.toFixed(2)} ms (${sum.n} events, ${index.tokens.length} tokens)`,
+              );
+            }
+          });
+        }
+        cleanups.push(() => s.destroy());
+        return s;
+      }
+
+      if (devTools) {
+        const engine = new SimulatedEngine();
+        session = startFollow(engine);
+        const panel = createSimPanel(engine, index, () => ctl.position);
+        session.events.on('status', ({ status }) => panel.setStatus(status));
+        root.append(panel.el);
+        cleanups.push(() => panel.destroy());
+        void session.start();
+        // Dev console handle: __cadenceFollow.aligner.state etc.
+        (window as unknown as { __cadenceFollow?: VoiceFollowSession }).__cadenceFollow = session;
+      }
 
       setCursor(cursorForPosition(index, ctl.position));
       relayout('jump');

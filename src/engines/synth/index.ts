@@ -22,6 +22,8 @@ export interface SimulateOptions {
   noise?: NoiseRates;
   seed?: number;
   speak?: Partial<SpeakConfig>;
+  /** Start reading at this position (items already behind it are not spoken). */
+  from?: number;
 }
 
 /** Read `source` (script text or an existing index) aloud with the given noise. */
@@ -29,7 +31,9 @@ export function simulateSpeech(source: string | ScriptIndex, o: SimulateOptions 
   const index = typeof source === 'string' ? buildScriptIndex(parseScript(source)) : source;
   const rng = createRng(o.seed ?? 1);
   const noise = o.noise ?? NO_NOISE;
-  const items = applyNoise(planSpeech(index), noise, rng);
+  const from = o.from ?? 0;
+  const plan = planSpeech(index).filter((it) => it.truth > from);
+  const items = applyNoise(plan, noise, rng);
   const events = speak(items, rng, noise, { ...SPEAK_DEFAULTS, ...o.speak });
   return { index, items, events };
 }

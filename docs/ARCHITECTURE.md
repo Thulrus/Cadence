@@ -29,7 +29,7 @@ src/
   engines/              webspeech.ts, simulated.ts, offline/ (M4). Implement RecognizerEngine.
                         synth/ = pure, seeded synthetic speech (plan → noise → timed events), shared by the harness and the dev simulator
   storage/              scripts.ts (ScriptStore, IndexedDB), settings.ts (SettingsStore, localStorage)
-  ui/                   DOM code: views/ (library, editor, prompter, settings; deps.ts = ViewDeps), components/ (dom, nav, notice, fields = labelled controls, quickpanel = in-run display panel), files.ts, autosave.ts, scroll.ts (ease/deadband math + rAF ScrollController), wordstate.ts (position → spoken/current word cursor), update.ts (SW update banner)
+  ui/                   DOM code: views/ (library, editor, prompter, settings; deps.ts = ViewDeps), components/ (dom, nav, notice, fields = labelled controls, quickpanel = in-run display panel), files.ts, autosave.ts, scroll.ts (ease/deadband math + rAF ScrollController), wordstate.ts (position → spoken/current word cursor), update.ts (SW update banner), follow.ts (VoiceFollowSession: engine → Aligner → PositionController), devsim.ts (dev simulator panel)
   app.ts                Composition root: builds stores, engines, controller, views; wires them.
   main.ts               Entry: imports CSS, calls app, registers the service worker (vite-plugin-pwa).
 test/

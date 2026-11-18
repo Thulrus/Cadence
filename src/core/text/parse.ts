@@ -7,7 +7,9 @@ import type { Block, DisplayWord, ParsedScript, WordKind } from './types';
  *   `lineBreakBefore` on the next word.
  * - `#`..`######` + space at line start → heading block (all words kind `heading`).
  * - `[bracketed text]` → `direction` words (brackets kept in display text). A `[` with no
- *   closing `]` later in the same paragraph is literal text.
+ *   closing `]` later in the same paragraph is literal text. A direction starting with
+ *   "ad-lib" / "adlib" / "ad lib" / "improvise" (any case, e.g. `[ad-lib: the grove story]`)
+ *   is an ad-lib marker: its words get `adlib: true` (the aligner holds there, align/aligner.ts).
  * - `*`, `**`, `_`, `__` emphasis markers at word edges are stripped; words between an
  *   opening and closing marker get `emphasis: true`.
  *
@@ -40,6 +42,7 @@ export function parseScript(text: string): ParsedScript {
       };
       if (w.lineBreakBefore && words.length > wordStart) word.lineBreakBefore = true;
       if (w.emphasis) word.emphasis = true;
+      if (w.adlib) word.adlib = true;
       words.push(word);
     }
     const block: Block = { kind, wordStart, wordEnd: words.length };
@@ -69,6 +72,24 @@ interface RawWord {
   kind: WordKind;
   lineBreakBefore: boolean;
   emphasis?: boolean;
+  adlib?: boolean;
+}
+
+/** Bracket text that makes a direction an ad-lib marker (matched against "[word word…]"). */
+export const ADLIB_MARKER = /^\[\s*(?:ad[\s-]?lib|improvi[sz])/i;
+
+/** Flag the words of each `[...]` direction whose text is an ad-lib marker. */
+function markAdlibs(out: RawWord[]): void {
+  for (let i = 0; i < out.length; i++) {
+    if (out[i]!.kind !== 'direction' || !out[i]!.text.startsWith('[')) continue;
+    let j = i;
+    while (j < out.length - 1 && out[j]!.kind === 'direction' && !out[j]!.text.includes(']')) j++;
+    const group = out.slice(i, j + 1);
+    if (ADLIB_MARKER.test(group.map((w) => w.text).join(' '))) {
+      for (const w of group) w.adlib = true;
+    }
+    i = j;
+  }
 }
 
 /** Whitespace split with no bracket handling (headings). */
@@ -130,6 +151,7 @@ function splitParagraph(body: string): RawWord[] {
     current += ch;
   }
   flush();
+  markAdlibs(out);
   return out;
 }
 

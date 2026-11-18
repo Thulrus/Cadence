@@ -85,3 +85,17 @@ export function positionForWord(index: ScriptIndex, wordIdx: number): number {
   if (!w) return wordIdx < 0 ? 0 : index.tokens.length;
   return w.tokenStart;
 }
+
+/**
+ * Positions of the ad-lib markers (SPEC §7 step 7): for each `[ad-lib …]` direction, the position
+ * of the next spoken token (its words' empty token range). Sorted, unique.
+ */
+export function adlibPositions(index: ScriptIndex): number[] {
+  const out: number[] = [];
+  const words = index.script.words;
+  words.forEach((w, i) => {
+    if (!w.adlib || words[i - 1]?.adlib) return;
+    if (out[out.length - 1] !== w.tokenStart) out.push(w.tokenStart);
+  });
+  return out;
+}

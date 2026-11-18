@@ -33,10 +33,15 @@
  *    after `lostAfterMs` the aligner is lost and widens the search in `lostWidenSteps` steps up
  *    to the whole script, with the stricter lost acceptance rule (step 6); `maxSkipAhead` still
  *    applies.
+ *  - Ad-lib markers (`[ad-lib …]`, SPEC §7 step 7): within `adlibNearTokens` before a marker
+ *    (or at it) the aligner is "at an ad-lib": lost mode and backward moves are off. A forward
+ *    move whose match starts at/after the marker (not one reading straight across it) must be
+ *    a confident match (`adlibResume*`) on the line right after the marker; otherwise hold.
  *  - `setPosition` (manual resync) re-centres the window and forgets what was heard before it.
  */
 import type { RecognitionEvent } from '../types';
 import { normalizeWords } from '../text/normalize';
+import { adlibPositions } from '../text/index';
 import type { ScriptIndex } from '../text/types';
 import { ALIGN_DEFAULTS, type AlignConfig } from './config';
 import { bestCandidate, isAcceptable, scoreWindow, type AcceptMode, type Candidate } from './score';
@@ -50,6 +55,8 @@ export interface AlignResult {
   jumped: boolean;
   /** Lost flag after this event. */
   lost: boolean;
+  /** At an ad-lib marker after this event (see `AlignerState.adlib`). */
+  adlib: boolean;
   /** Score of the accepted candidate, or 0 when nothing was accepted. */
   score: number;
   /** Which search accepted the match. */
@@ -60,6 +67,10 @@ export interface AlignResult {
 export interface AlignerState {
   position: number;
   lost: boolean;
+  /** Position is at (or just before) an ad-lib marker: holding until the line after it. */
+  adlib: boolean;
+  /** Script position of that marker, or null. */
+  adlibAt: number | null;
   /** ms of speech activity since the last accepted match. */
   msSinceMatch: number;
   /** Current tail of normalized recognized tokens. */
@@ -87,14 +98,42 @@ export class Aligner {
   private lostMs = 0;
   private lastActivity: number | null = null;
   private lost = false;
+  /** Ad-lib marker positions (sorted). */
+  private readonly adlibs: number[];
 
   constructor(
     private readonly index: ScriptIndex,
     private config: AlignConfig = ALIGN_DEFAULTS,
-  ) {}
+  ) {
+    this.adlibs = adlibPositions(index);
+  }
 
   get state(): AlignerState {
-    return { position: this.p, lost: this.lost, msSinceMatch: this.lostMs, tail: this.tail };
+    const at = this.adlibAt();
+    return {
+      position: this.p,
+      lost: this.lost,
+      adlib: at !== null,
+      adlibAt: at,
+      msSinceMatch: this.lostMs,
+      tail: this.tail,
+    };
+  }
+
+  /** The marker the position is at or within `adlibNearTokens` before, or null. */
+  private adlibAt(): number | null {
+    const m = this.adlibs.find((a) => a >= this.p);
+    return m !== undefined && m - this.p <= this.config.adlibNearTokens ? m : null;
+  }
+
+  /** Last marker in [from, to] (a forward move from `from` to a match starting at `to`), or null. */
+  private markerCrossed(from: number, to: number): number | null {
+    let found: number | null = null;
+    for (const a of this.adlibs) {
+      if (a > to) break;
+      if (a >= from) found = a;
+    }
+    return found;
   }
 
   setConfig(config: AlignConfig): void {
@@ -167,6 +206,9 @@ export class Aligner {
 
     const near = this.pickNear(scoreWindow(tail, this.index, this.p, cfg));
     if (near && isAcceptable(near, cfg, 'normal')) return this.accept(near, 'normal', final);
+
+    // At an ad-lib, off-script speech is expected: no reread search, no lost mode.
+    if (this.adlibAt() !== null) return null;
 
     if (cfg.allowBacktrack && tail.length >= cfg.backtrackMinTail) {
       const behind = bestCandidate(
@@ -247,6 +289,20 @@ export class Aligner {
       if (mode === 'normal') this.matched();
       return this.lost !== wasLost ? this.result(this.p, 0, null, final) : null;
     }
+    if (delta > 0) {
+      const m = this.markerCrossed(this.p, c.matchedSpan[0]);
+      if (
+        m !== null &&
+        !(
+          c.matchedSpan[0] - m <= cfg.adlibResumeSpan &&
+          c.matchedCount >= cfg.adlibResumeMinMatched &&
+          c.score >= cfg.adlibResumeThreshold
+        )
+      ) {
+        return null; // leaving an ad-lib needs a confident match on the line after the marker
+      }
+    }
+    if (delta < 0 && this.adlibAt() !== null) return null; // never back out of an ad-lib by voice
     if (delta < 0) {
       const backtrack =
         cfg.allowBacktrack &&
@@ -284,6 +340,7 @@ export class Aligner {
       moved: d !== 0,
       jumped: Math.abs(d) > this.config.largeJumpTokens,
       lost: this.lost,
+      adlib: this.adlibAt() !== null,
       score,
       mode,
       final,

@@ -157,7 +157,43 @@ describe('helpers', () => {
   });
 });
 
+describe('VoiceFollowSession: ad-lib markers', () => {
+  it('emits adlib on reaching a marker and clears it on resume or tap', () => {
+    const index = buildScriptIndex(
+      parseScript(`${PARA(1)} [ad-lib: a garden story]\n\n${PARA(2)}`),
+    );
+    const ctl = new PositionController(index);
+    const engine = new FakeEngine();
+    const session = new VoiceFollowSession(engine, index, ctl, resolveConfig({}), () => 0);
+    const seen: (number | null)[] = [];
+    session.events.on('adlib', (a) => seen.push(a.at));
+    engine.say(PARA(1).replace(/[.,]/g, ''));
+    const marker = ctl.position;
+    expect(session.isAdlib).toBe(true);
+    expect(seen).toEqual([marker]);
+    engine.say('Paragraph two talks about the garden behind house number two');
+    expect(session.isAdlib).toBe(false);
+    expect(seen).toEqual([marker, null]);
+    ctl.set(marker, 'manual');
+    expect(seen).toEqual([marker, null, marker]);
+    ctl.set(0, 'manual');
+    expect(seen).toEqual([marker, null, marker, null]);
+  });
+});
+
 describe('statusBadge', () => {
+  it('shows Ad-lib while listening at a marker', () => {
+    expect(statusBadge('listening', false, undefined, true)).toEqual({
+      label: 'Ad-lib',
+      state: 'adlib',
+      active: true,
+    });
+    expect(statusBadge('paused', false, undefined, true).label).toBe('Paused');
+    expect(statusAnnouncement(null, statusBadge('listening', false, undefined, true))).toBe(
+      'Ad-lib. Waiting for the next line.',
+    );
+  });
+
   it('maps engine status and lost flag to the badge', () => {
     expect(statusBadge('listening', false)).toEqual({
       label: 'Listening',

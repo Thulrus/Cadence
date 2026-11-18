@@ -264,6 +264,97 @@ describe('Aligner', () => {
   });
 });
 
+describe('Aligner: ad-lib markers', () => {
+  const TEXT = [
+    PARAS[0],
+    `${PARAS[1]} [ad-lib: my own mission story]`,
+    PARAS[2],
+    `${PARAS[3]} [improvise]`,
+    PARAS[4],
+  ].join('\n\n');
+  const idx = buildScriptIndex(parseScript(TEXT));
+  const nm = idx.tokens.map((t) => t.norm);
+  const at = (phrase: string) => {
+    const ph = normalizeText(phrase);
+    for (let i = 0; i + ph.length <= nm.length; i++) {
+      if (ph.every((t, k) => nm[i + k] === t)) return i + ph.length;
+    }
+    throw new Error(phrase);
+  };
+  const marker = at('things the Lord commanded.');
+  const speaker = (cfg = ALIGN_DEFAULTS) => new Speaker(new Aligner(idx, cfg));
+  // A long story full of words and phrases from the next paragraph (the realistic hazard).
+  // (Reciting the resume line's opening itself does resume: that's indistinguishable.)
+  const STORY = [
+    'when I was a missionary we had a companion who refused to give up',
+    'we had a landlord a bit like Laban who kept our deposit gold and silver to him',
+    'twice we failed and twice we went back trusting that a way would open',
+    'and I want you to know that trusting the Lord is how the way opened for us',
+    'brothers and sisters I am grateful and the brass plates mattered to Nephi',
+  ];
+
+  it('holds through a long, related story and resumes on the line after the marker', () => {
+    const s = speaker();
+    s.say(PARAS[0]!);
+    s.say(PARAS[1]!);
+    expect(s.pos).toBe(marker);
+    expect(s.aligner.state.adlib).toBe(true);
+    expect(s.aligner.state.adlibAt).toBe(marker);
+    const moves = s.results.length;
+    for (const line of STORY) s.say(line);
+    expect(s.pos).toBe(marker);
+    expect(s.aligner.state.lost).toBe(false);
+    expect(s.results.slice(moves).filter((r) => r.moved)).toEqual([]);
+    s.say('Laban refused them and took their gold and silver');
+    expect(s.pos).toBe(at('their gold and silver.'));
+    expect(s.aligner.state.adlib).toBe(false);
+  });
+
+  it('without the marker, the same story drags the prompter', () => {
+    const plain = buildScriptIndex(parseScript(PARAS.join('\n\n')));
+    const s = new Speaker(new Aligner(plain));
+    s.say(PARAS[0]!);
+    s.say(PARAS[1]!);
+    const p = s.pos;
+    for (const line of STORY) s.say(line);
+    expect(s.pos).not.toBe(p);
+  });
+
+  it('reading straight across the marker is followed normally', () => {
+    const s = speaker();
+    s.say(PARAS[0]!);
+    s.say(PARAS[1]!);
+    s.say(PARAS[2]!);
+    expect(s.pos).toBe(at(PARAS[2]!));
+    s.say(PARAS[3]!);
+    s.say(PARAS[4]!);
+    expect(s.pos).toBe(nm.length);
+  });
+
+  it('resuming later than the line after the marker needs a tap', () => {
+    const s = speaker();
+    s.say(PARAS[0]!);
+    s.say(PARAS[1]!);
+    for (const line of STORY.slice(0, 2)) s.say(line);
+    s.say('Twice they failed and twice Nephi went back trusting that a way would open');
+    expect(s.pos).toBe(marker);
+    s.aligner.setPosition(at('Twice they failed,'));
+    expect(s.aligner.state.adlib).toBe(false);
+    s.say('and twice Nephi went back trusting that a way would open');
+    expect(s.pos).toBe(at('a way would open.'));
+  });
+
+  it('never moves backward out of an ad-lib by voice', () => {
+    const s = speaker();
+    s.say(PARAS[0]!);
+    s.say(PARAS[1]!);
+    s.say('Nephi was asked to return to Jerusalem for the brass plates');
+    s.say('His brothers murmured but Nephi said he would go');
+    expect(s.pos).toBe(marker);
+    expect(s.backwardMoves()).toEqual([]);
+  });
+});
+
 describe('resolveConfig', () => {
   it('merges valid overrides and ignores junk', () => {
     const c = resolveConfig({

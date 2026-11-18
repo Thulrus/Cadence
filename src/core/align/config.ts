@@ -56,6 +56,19 @@ export interface AlignConfig {
    * during an ad-lib would be catastrophic live; a speaker who really skips ahead scrolls there.
    */
   maxSkipAhead: number;
+  /**
+   * Ad-lib markers (`[ad-lib …]`, SPEC §7 step 7). Within this many tokens before a marker
+   * (and at it) the aligner is "at an ad-lib": no lost mode and no backward moves.
+   */
+  adlibNearTokens: number;
+  /**
+   * Leaving an ad-lib: a forward move whose match starts at/after a marker (rather than reading
+   * straight across it) must match this many tokens, score at least `adlibResumeThreshold`,
+   * and start within `adlibResumeSpan` tokens of the marker (the line right after it).
+   */
+  adlibResumeMinMatched: number;
+  adlibResumeThreshold: number;
+  adlibResumeSpan: number;
   /** Script-token weight that makes a strong anchor. */
   strongAnchorWeight: number;
   /** Rereading: allow confident backward moves at all. */
@@ -103,6 +116,10 @@ export const ALIGN_DEFAULTS: Readonly<AlignConfig> = {
   minMatchedTokens: 3,
   jumpMinMatched: 4,
   maxSkipAhead: 30,
+  adlibNearTokens: 8,
+  adlibResumeMinMatched: 4,
+  adlibResumeThreshold: 0.8,
+  adlibResumeSpan: 3,
   strongAnchorWeight: WEIGHT_CONFIG.strongAnchorWeight,
   allowBacktrack: true,
   backtrackThreshold: 0.85,
@@ -149,6 +166,9 @@ const INTEGER_KEYS = new Set<keyof AlignConfig>([
   'minMatchedTokens',
   'jumpMinMatched',
   'maxSkipAhead',
+  'adlibNearTokens',
+  'adlibResumeMinMatched',
+  'adlibResumeSpan',
   'backtrackMinTail',
   'backtrackMinTokens',
   'backtrackWindow',
@@ -292,6 +312,34 @@ export const ALIGN_TUNING: Readonly<Record<keyof AlignConfig, TuningParam>> = {
     help: 'Furthest the voice can jump forward past unread text. Skip further by scrolling or tapping.',
     min: 0,
     max: 500,
+    step: 1,
+  },
+  adlibNearTokens: {
+    label: 'Ad-lib approach (words)',
+    help: 'Within this many words before an [ad-lib] marker, the prompter won’t go lost or move back.',
+    min: 0,
+    max: 40,
+    step: 1,
+  },
+  adlibResumeMinMatched: {
+    label: 'Ad-lib resume words',
+    help: 'Matched words needed to leave an [ad-lib] marker and continue with the line after it.',
+    min: 1,
+    max: 12,
+    step: 1,
+  },
+  adlibResumeThreshold: {
+    label: 'Ad-lib resume threshold',
+    help: 'Score (0–1) needed to leave an [ad-lib] marker.',
+    min: 0,
+    max: 1,
+    step: 0.01,
+  },
+  adlibResumeSpan: {
+    label: 'Ad-lib resume start',
+    help: 'The resume match must start within this many words after the marker; elsewhere, tap to resync.',
+    min: 0,
+    max: 20,
     step: 1,
   },
   strongAnchorWeight: {

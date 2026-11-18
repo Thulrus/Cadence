@@ -103,4 +103,26 @@ describe('parseScript', () => {
   it('strips emphasis in headings', () => {
     expect(texts('## The *Good* News')).toEqual(['The', 'Good', 'News']);
   });
+
+  it('flags ad-lib markers (any case, optional note) but not other directions', () => {
+    const adlib = (t: string) =>
+      parseScript(t)
+        .words.filter((w) => w.kind === 'direction')
+        .map((w) => `${w.text}:${w.adlib ? 'A' : '-'}`);
+    expect(adlib('One [ad-lib: grove story] two [pause] three')).toEqual([
+      '[ad-lib::A',
+      'grove:A',
+      'story]:A',
+      '[pause]:-',
+    ]);
+    expect(adlib('[Improvise] [AdLib] [ad lib] [improvising here] [adding]')).toEqual([
+      '[Improvise]:A',
+      '[AdLib]:A',
+      '[ad:A',
+      'lib]:A',
+      '[improvising:A',
+      'here]:A',
+      '[adding]:-',
+    ]);
+  });
 });

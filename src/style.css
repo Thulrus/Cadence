@@ -615,6 +615,19 @@ textarea:focus-visible {
   font-style: italic;
 }
 
+.prompter-text .w-adlib {
+  font-style: normal;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+/* While holding at an [ad-lib] marker: the line voice will resume on. */
+.prompter-text .w-resume {
+  text-decoration: underline dashed var(--direction);
+  text-decoration-thickness: 0.08em;
+  text-underline-offset: 0.2em;
+}
+
 .prompter-text .w-em {
   font-style: italic;
   font-weight: 700;
@@ -1019,6 +1032,10 @@ input[type='range']:focus-visible {
 
 .listen-badge[data-state='listening'] {
   border-color: var(--good);
+}
+
+.listen-badge[data-state='adlib'] {
+  border-color: var(--direction);
 }
 
 .listen-badge[data-state='lost'],

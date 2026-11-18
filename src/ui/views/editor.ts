@@ -16,6 +16,7 @@ export const EDITOR_CONFIG = {
 const CHEAT_SHEET: [syntax: string, meaning: string][] = [
   ['# Heading', 'Shown larger; not read aloud'],
   ['[stage direction]', 'Shown in colour; skipped by voice follow'],
+  ['[ad-lib: note]', 'Voice holds here until you start the next line'],
   ['*emphasis*', 'Shown emphasized'],
   ['Blank line', 'New paragraph'],
 ];

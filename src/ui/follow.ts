@@ -5,7 +5,8 @@
  *  - engine `result` → `aligner.feed` → accepted moves → `controller.set(p, 'align')`;
  *  - any other position change (tap, keys, undo, reset, timed) → `aligner.setPosition`, so the
  *    search window follows the reader's manual resync;
- *  - events for the view: `jump` (a large move: offer undo), `lost` (flag changed),
+ *  - events for the view: `jump` (a large move: offer undo), `lost` (flag changed), `adlib`
+ *    (holding at an `[ad-lib]` marker or not),
  *    `status` (engine status passthrough), `timing` (ms spent handling one result, for the
  *    dev-only perf log), `failed` (the engine or aligner threw: voice following stopped, the
  *    view falls back to manual so the prompter keeps working).
@@ -23,6 +24,8 @@ import type { EngineStatus, RecognitionEvent, RecognizerEngine } from '../core/t
 export interface VoiceFollowEvents extends Record<string, unknown> {
   jump: { previous: number; position: number };
   lost: { lost: boolean };
+  /** Holding at an ad-lib marker (`at` = its script position) or not. */
+  adlib: { adlib: boolean; at: number | null };
   status: { status: EngineStatus; message?: string };
   level: number;
   timing: { ms: number; result: AlignResult | null };
@@ -33,6 +36,7 @@ export class VoiceFollowSession {
   readonly events = new Emitter<VoiceFollowEvents>();
   readonly aligner: Aligner;
   private lost = false;
+  private adlibAt: number | null = null;
   private applying = false;
   /** Set by `fail()`; results are ignored until the next `start()`. */
   private failed = false;
@@ -61,6 +65,11 @@ export class VoiceFollowSession {
     return this.lost;
   }
 
+  /** Holding at an ad-lib marker (SPEC §7 step 7). */
+  get isAdlib(): boolean {
+    return this.adlibAt !== null;
+  }
+
   /** Start the engine. Never rejects: a throw or rejection becomes a `failed` event. */
   async start(): Promise<void> {
     this.failed = false;
@@ -87,6 +96,7 @@ export class VoiceFollowSession {
   resync(p: number = this.controller.position): void {
     this.aligner.setPosition(p);
     this.setLost(false);
+    this.syncAdlib();
   }
 
   /** Undo the last large jump (controller.undo → change → aligner resync). */
@@ -131,7 +141,15 @@ export class VoiceFollowSession {
       if (r.jumped) this.events.emit('jump', { previous: r.previous, position: r.position });
     }
     if (r) this.setLost(r.lost);
+    this.syncAdlib();
     this.events.emit('timing', { ms: this.now() - t0, result: r });
+  }
+
+  private syncAdlib(): void {
+    const at = this.aligner.state.adlibAt;
+    if (at === this.adlibAt) return;
+    this.adlibAt = at;
+    this.events.emit('adlib', { adlib: at !== null, at });
   }
 
   private setLost(lost: boolean): void {
@@ -170,20 +188,26 @@ export class TimingStats {
   }
 }
 
-/** Status badge for the prompter (SPEC §9): engine status + aligner lost flag. */
+/** Status badge for the prompter (SPEC §9): engine status + aligner lost / ad-lib flags. */
 export interface StatusBadge {
   label: string;
   /** CSS state hook: `data-state` on the badge. */
-  state: 'listening' | 'paused' | 'lost' | 'restarting' | 'no-permission' | 'error';
+  state: 'listening' | 'paused' | 'lost' | 'adlib' | 'restarting' | 'no-permission' | 'error';
   /** Listening is on (the button offers "Pause"). */
   active: boolean;
 }
 
-export function statusBadge(status: EngineStatus, lost: boolean, message?: string): StatusBadge {
+export function statusBadge(
+  status: EngineStatus,
+  lost: boolean,
+  message?: string,
+  adlib = false,
+): StatusBadge {
   switch (status) {
     case 'starting':
       return { label: 'Starting…', state: 'restarting', active: true };
     case 'listening':
+      if (adlib) return { label: 'Ad-lib', state: 'adlib', active: true };
       return lost
         ? { label: 'Lost', state: 'lost', active: true }
         : { label: 'Listening', state: 'listening', active: true };
@@ -208,6 +232,11 @@ export function statusBadge(status: EngineStatus, lost: boolean, message?: strin
  */
 export function statusAnnouncement(lastSpoken: string | null, b: StatusBadge): string | null {
   if (b.state === 'restarting') return null;
-  const text = b.state === 'lost' ? 'Lost. Tap a word to resync.' : b.label;
+  const text =
+    b.state === 'lost'
+      ? 'Lost. Tap a word to resync.'
+      : b.state === 'adlib'
+        ? 'Ad-lib. Waiting for the next line.'
+        : b.label;
   return text === lastSpoken ? null : text;
 }

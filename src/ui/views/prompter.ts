@@ -119,7 +119,7 @@ export function buildScriptDom(index: ScriptIndex): { root: HTMLElement; spans: 
       const span = document.createElement('span');
       span.textContent = w.text;
       span.dataset.w = String(i);
-      if (w.kind === 'direction') span.className = 'w-dir';
+      if (w.kind === 'direction') span.className = w.adlib ? 'w-dir w-adlib' : 'w-dir';
       if (w.emphasis) span.classList.add('w-em');
       el.append(span);
       spans[i] = span;
@@ -128,6 +128,27 @@ export function buildScriptDom(index: ScriptIndex): { root: HTMLElement; spans: 
   }
   root.append(frag);
   return { root, spans };
+}
+
+/** Max words marked as the resume line after an [ad-lib] marker. */
+const RESUME_LINE_MAX_WORDS = 12;
+
+/**
+ * Display words of the line voice resumes on after an ad-lib marker at position `at`: from
+ * the next spoken word to the end of its sentence (or block), at most RESUME_LINE_MAX_WORDS.
+ */
+export function resumeWords(index: ScriptIndex, at: number): number[] {
+  const tok = index.tokens[at];
+  if (!tok) return [];
+  const words = index.script.words;
+  const out: number[] = [];
+  for (let i = tok.word; i < words.length && out.length < RESUME_LINE_MAX_WORDS; i++) {
+    const w = words[i]!;
+    if (w.block !== words[tok.word]!.block || w.kind === 'direction') break;
+    out.push(i);
+    if (/[.?!]["”’')\]]*$/.test(w.text)) break;
+  }
+  return out;
 }
 
 /** Prompter view: renders a script, follows the PositionController, manual tap/drag control. */
@@ -637,7 +658,12 @@ export function createPrompterView(deps: ViewDeps): View {
       let engineStatus: { status: EngineStatus; message?: string } = { status: 'idle' };
       function renderStatus(): void {
         const lost = session?.isLost ?? false;
-        const b = statusBadge(engineStatus.status, lost, engineStatus.message);
+        const b = statusBadge(
+          engineStatus.status,
+          lost,
+          engineStatus.message,
+          session?.isAdlib ?? false,
+        );
         badge.textContent = b.label;
         badge.dataset.state = b.state;
         badge.title = engineStatus.message ?? '';
@@ -698,6 +724,14 @@ export function createPrompterView(deps: ViewDeps): View {
        */
       let listenWanted = false;
 
+      /** While holding at an [ad-lib] marker, mark the line voice will resume on. */
+      let resumeMarked: HTMLElement[] = [];
+      function markResume(at: number | null): void {
+        for (const el of resumeMarked) el.classList.remove('w-resume');
+        resumeMarked = at === null ? [] : resumeWords(index, at).map((i) => spans[i]!);
+        for (const el of resumeMarked) el.classList.add('w-resume');
+      }
+
       /** Voice driver start: re-centre on the current position, then listen. */
       function startListening(): void {
         listenWanted = true;
@@ -733,6 +767,10 @@ export function createPrompterView(deps: ViewDeps): View {
           if (run.mode === 'voice') run.setMode('manual');
         });
         s.events.on('lost', renderStatus);
+        s.events.on('adlib', ({ at }) => {
+          markResume(at);
+          renderStatus();
+        });
         s.events.on('level', (l) => {
           meterFill.style.transform = `scaleX(${l.toFixed(3)})`;
         });

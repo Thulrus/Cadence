@@ -81,8 +81,11 @@ Plain text works. A few optional markers are understood:
 | --------------------- | --------------------------------- | ----------------- |
 | `# Heading`           | larger heading (`##`… for levels) | no                |
 | `[look up]`           | stage direction in a distinct hue | no                |
+| `[ad-lib: story]`     | ad-lib marker (see below)         | no                |
 | blank line            | paragraph break                   | —                 |
 | `*word*` / `**word**` | emphasis                          | yes               |
+
+**Planned ad-libs:** put `[ad-lib]` (or `[improvise]`, optionally with a note: `[ad-lib: the mission story]`) where you'll go off-script. When voice-follow reaches it, it holds there (the badge says **Ad-lib**, and the line after the marker is underlined) and ignores everything you say until you start that line. If you come back somewhere else, tap or scroll there. Avoid starting the story with the opening words of the line after the marker: that counts as resuming.
 
 Load `.txt` / `.md` files with **Load file** or by dragging them onto the library or editor.
 

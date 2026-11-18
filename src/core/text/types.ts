@@ -15,6 +15,8 @@ export interface DisplayWord {
   lineBreakBefore?: boolean;
   /** Word was inside `*...*`, `**...**` or `_..._`. */
   emphasis?: boolean;
+  /** Direction word of an ad-lib marker (`[ad-lib …]`, `[improvise …]`; SPEC §6, §7 step 7). */
+  adlib?: boolean;
 }
 
 export interface Block {

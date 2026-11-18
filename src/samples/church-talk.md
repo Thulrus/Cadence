@@ -20,7 +20,7 @@ Parents, if you're worried that your family scripture study doesn't seem to be w
 
 The second place I've seen this principle is in service. A few winters ago, our family went through a hard season. I lost my job in November, and by January we were worried about how we would make the mortgage payment. We didn't tell many people. We were embarrassed, and we didn't want anyone to fuss over us.
 
-One cold morning I walked outside to shovel the driveway and found that someone had already done it. The walk was clear, the steps were salted, and there was a loaf of homemade bread wrapped in a towel on the porch. There was no note. To this day I don't know for certain who did it.
+One cold morning I walked outside to shovel the driveway and found that someone had already done it. The walk was clear, the steps were salted, and there was a loaf of homemade bread wrapped in a towel on the porch. There was no note. To this day I don't know for certain who did it. [ad-lib: if there's time, a story of someone who quietly served you]
 
 That bread did not pay our mortgage. The shoveling did not find me a new job. But I cannot describe how much it lifted us. It told us that someone saw us and that we were not forgotten. It reminded me of what King Benjamin taught in Mosiah 2:17: "when ye are in the service of your fellow beings ye are only in the service of your God."
 

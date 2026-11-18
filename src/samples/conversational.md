@@ -6,7 +6,7 @@ Now, I'm not here to tell you that you need the most expensive brand on the shel
 
 [pause]
 
-Let me start with a story. A few years ago I bought a bargain drill from a discount bin. It looked fine. It had a nice case, a couple of batteries, and a bright orange handle. The first weekend I used it, the chuck started wobbling. By the third project, it wouldn't hold a bit straight at all. So I bought another one, the same model, thinking I just got unlucky. That one lasted about a month.
+Let me start with a story. A few years ago I bought a bargain drill from a discount bin. It looked fine. It had a nice case, a couple of batteries, and a bright orange handle. The first weekend I used it, the chuck started wobbling. By the third project, it wouldn't hold a bit straight at all. So I bought another one, the same model, thinking I just got unlucky. That one lasted about a month. [ad-lib: hold up the broken drill and show the wobble]
 
 Here's the thing nobody tells you. When a tool fails, it doesn't just cost you the price of the tool. It costs you the afternoon. It costs you the board you just split. And honestly, it costs you a little bit of the joy you get from making things.
 

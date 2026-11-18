@@ -29,12 +29,14 @@ const LIMITS: Record<keyof typeof SCENARIOS, Limits> = {
   light: { within5: 0.97, meanLag: 0.6, maxAhead: 6, corrective: 2 },
   heavy: { within5: 0.88, meanLag: 1.8, maxAhead: 10, corrective: 3 },
   adlib: { within5: 0.97, meanLag: 0.6, maxAhead: 6, corrective: 2, recoverMax: 3000 },
+  // Skips past maxSkipAhead aren't followed by voice; the simulated speaker taps to resync after
+  // HARNESS_CONFIG.manualResyncMs, so those recoveries include that wait by design.
   skip: {
     within5: 0.95,
-    meanLag: 1.2,
+    meanLag: 2,
     maxAhead: 6,
     corrective: 2,
-    recoverMean: 2500,
+    recoverMean: 3500,
     recoverMax: 5000,
   },
   reread: { within5: 0.96, meanLag: 0.8, maxAhead: 6, corrective: 2, recoverMax: 4500 },

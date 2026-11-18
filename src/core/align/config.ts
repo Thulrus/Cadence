@@ -50,6 +50,12 @@ export interface AlignConfig {
    * to appear a few lines ahead must not drag the prompter forward).
    */
   jumpMinMatched: number;
+  /**
+   * Most unread script words a forward move may skip (from the position to the start of the
+   * matched stretch), in every mode, lost included. Voice never jumps far ahead: a stray match
+   * during an ad-lib would be catastrophic live; a speaker who really skips ahead scrolls there.
+   */
+  maxSkipAhead: number;
   /** Script-token weight that makes a strong anchor. */
   strongAnchorWeight: number;
   /** Rereading: allow confident backward moves at all. */
@@ -96,6 +102,7 @@ export const ALIGN_DEFAULTS: Readonly<AlignConfig> = {
   matchSimilarity: 0.7,
   minMatchedTokens: 3,
   jumpMinMatched: 4,
+  maxSkipAhead: 30,
   strongAnchorWeight: WEIGHT_CONFIG.strongAnchorWeight,
   allowBacktrack: true,
   backtrackThreshold: 0.85,
@@ -141,6 +148,7 @@ const INTEGER_KEYS = new Set<keyof AlignConfig>([
   'nearSlack',
   'minMatchedTokens',
   'jumpMinMatched',
+  'maxSkipAhead',
   'backtrackMinTail',
   'backtrackMinTokens',
   'backtrackWindow',
@@ -277,6 +285,13 @@ export const ALIGN_TUNING: Readonly<Record<keyof AlignConfig, TuningParam>> = {
     help: 'Matched words needed to move forward past skipped text (stops short ad-lib phrases dragging the prompter).',
     min: 1,
     max: 12,
+    step: 1,
+  },
+  maxSkipAhead: {
+    label: 'Max skip ahead (words)',
+    help: 'Furthest the voice can jump forward past unread text. Skip further by scrolling or tapping.',
+    min: 0,
+    max: 500,
     step: 1,
   },
   strongAnchorWeight: {

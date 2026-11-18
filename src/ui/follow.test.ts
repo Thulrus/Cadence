@@ -94,7 +94,7 @@ describe('VoiceFollowSession', () => {
   });
 
   it('emits jump for a large skip and undo goes back and resyncs', () => {
-    const { ctl, engine, session, after } = setup({ largeJumpTokens: 10 });
+    const { ctl, engine, session, after } = setup({ largeJumpTokens: 10, maxSkipAhead: 1000 });
     const jumps: number[] = [];
     session.events.on('jump', (j) => jumps.push(j.position - j.previous));
     engine.say('Paragraph one talks about the garden behind house number one');

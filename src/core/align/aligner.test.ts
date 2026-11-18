@@ -135,20 +135,40 @@ describe('Aligner', () => {
     expect(s.pos).toBe(p);
   });
 
-  it('skipping a paragraph forward is caught (window or lost mode)', () => {
+  it('never jumps far ahead: skipping a paragraph holds (the speaker scrolls there)', () => {
     const s = fresh();
     s.say(PARAS[0]!);
-    expect(s.pos).toBe(after(PARAS[0]!));
-    // Skip paragraphs 2–3; read paragraph 4.
-    const p4 = PARAS[3]!.split(/(?<=\.)\s+/);
-    for (const sent of p4) s.say(sent);
-    expect(s.pos).toBe(after(PARAS[3]!));
-    // One move covers the skipped text; `jumped` flags it only past largeJumpTokens.
-    const skipped = after(PARAS[2]!) - after(PARAS[0]!);
-    const jump = s.results.find((r) => r.moved && r.position - r.previous >= skipped);
-    expect(jump).toBeDefined();
-    expect(jump!.jumped).toBe(jump!.position - jump!.previous > ALIGN_DEFAULTS.largeJumpTokens);
+    const p = s.pos;
+    expect(p).toBe(after(PARAS[0]!));
+    // Skip paragraphs 2–3; read paragraph 4, long enough to go lost.
+    for (let k = 0; k < 3; k++) for (const sent of PARAS[3]!.split(/(?<=\.)\s+/)) s.say(sent);
+    expect(s.pos).toBe(p);
+    expect(s.results.every((r) => r.position - r.previous <= ALIGN_DEFAULTS.maxSkipAhead + 9)).toBe(
+      true,
+    );
+  });
+
+  it('off-script for a long time, a far-ahead script phrase does not pull the prompter', () => {
+    const s = fresh();
+    s.say(PARAS[0]!);
+    const p = s.pos;
+    s.say('let me tell you about my trip to the coast last summer with my family and our dog');
+    s.say('we drove for hours and the car kept making a strange rattling noise the whole way');
+    expect(s.aligner.state.lost).toBe(true);
+    // The ad-lib happens to quote the last paragraph verbatim.
+    s.say('when we act in faith doors open that we could never have opened alone');
+    expect(s.pos).toBe(p);
+    // Back on script: picks up where they were.
+    s.say('Nephi was asked to return to Jerusalem for the brass plates');
+    expect(s.pos).toBe(after('for the brass plates.'));
     expect(s.aligner.state.lost).toBe(false);
+  });
+
+  it('maxSkipAhead is tunable: a large value catches a skipped paragraph again', () => {
+    const s = fresh(resolveConfig({ maxSkipAhead: 1000 }));
+    s.say(PARAS[0]!);
+    for (const sent of PARAS[3]!.split(/(?<=\.)\s+/)) s.say(sent);
+    expect(s.pos).toBe(after(PARAS[3]!));
   });
 
   it('a small skip ahead is caught inside the normal window', () => {

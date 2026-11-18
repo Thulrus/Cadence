@@ -22,14 +22,17 @@
  *    previous final as a prefix (an Android Chrome quirk) has that prefix dropped.
  *  - An unchanged tail at an unchanged position is not rescored (step 9).
  *  - Forward moves: best acceptable candidate ⇒ position = q + 1. A move whose match starts
- *    past the position (skipping script text) needs `jumpMinMatched` matched tokens.
+ *    past the position (skipping script text) needs `jumpMinMatched` matched tokens. A best
+ *    match skipping more than `maxSkipAhead` tokens is never taken, in any mode: hold instead
+ *    (no fallback to a reread or lost candidate; the speaker scrolls to a real big skip).
  *  - Backward moves only with `allowBacktrack`, score ≥ `backtrackThreshold`, an aligned tail
  *    ≥ `backtrackMinTail` and a distance ≥ `backtrackMinTokens`; otherwise hold (step 5).
  *    Rereads further back than `windowBack` are found by a backward-only search over
  *    `backtrackWindow` tokens, tried only when the normal window has nothing acceptable.
  *  - No acceptable match ⇒ hold (ad-libs, step 7). Speech activity without a match accumulates;
  *    after `lostAfterMs` the aligner is lost and widens the search in `lostWidenSteps` steps up
- *    to the whole script, with the stricter lost acceptance rule (step 6).
+ *    to the whole script, with the stricter lost acceptance rule (step 6); `maxSkipAhead` still
+ *    applies.
  *  - `setPosition` (manual resync) re-centres the window and forgets what was heard before it.
  */
 import type { RecognitionEvent } from '../types';
@@ -236,6 +239,13 @@ export class Aligner {
       c.matchedCount < cfg.jumpMinMatched
     ) {
       return null; // a skip ahead on too little evidence: hold
+    }
+    if (delta > 0 && c.matchedSpan[0] - this.p > cfg.maxSkipAhead) {
+      // The speaker is (or seems) far ahead. Never jump there; they scroll if it's real. Hold,
+      // and don't fall back to a reread/lost candidate. In the normal window it is still
+      // script speech, so it doesn't count toward lost mode (whose wide search could pull back).
+      if (mode === 'normal') this.matched();
+      return this.lost !== wasLost ? this.result(this.p, 0, null, final) : null;
     }
     if (delta < 0) {
       const backtrack =

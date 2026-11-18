@@ -20,6 +20,8 @@ export const HARNESS_CONFIG = {
   tolerance: 5,
   /** Recovery is complete after this long continuously within tolerance. */
   settleMs: 500,
+  /** After a skip the prompter hasn't followed for this long, the simulated speaker taps to resync. */
+  manualResyncMs: 2500,
 } as const;
 
 export interface Recovery {
@@ -68,7 +70,23 @@ export function runSimulation(sim: Simulation, config?: Partial<AlignConfig>): M
   let correctiveBack = 0;
   let backMoves = 0;
   let maxTruth = 0;
+  let lastItem = -1;
+  let skipAt: number | null = null;
   for (const te of events) {
+    // After a skip voice-follow won't jump (maxSkipAhead), the speaker taps where they are
+    // once they notice the prompter hasn't followed (SPEC §7 step 8). Items said but not
+    // recognized have no events, so check every item since the last event's.
+    for (let i = lastItem + 1; i <= te.item; i++) {
+      if (items[i]!.mark === 'skip') skipAt = te.event.timestamp;
+    }
+    lastItem = Math.max(lastItem, te.item);
+    if (skipAt !== null) {
+      if (Math.abs(aligner.state.position - te.truth) <= HARNESS_CONFIG.tolerance) skipAt = null;
+      else if (te.event.timestamp - skipAt >= HARNESS_CONFIG.manualResyncMs) {
+        aligner.setPosition(te.truth);
+        skipAt = null;
+      }
+    }
     maxTruth = Math.max(maxTruth, te.truth);
     const before = aligner.state.position;
     aligner.feed(te.event);

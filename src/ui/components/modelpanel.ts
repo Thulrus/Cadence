@@ -16,13 +16,27 @@ export interface ModelPanel {
   destroy(): void;
 }
 
-export function modelPanel(svc: OfflineModelService): ModelPanel {
+export interface ModelPanelOptions {
+  /**
+   * Full management UI (heading, description, delete, storage use): Settings. Off for the
+   * compact download-only version embedded in the first-run dialog and the Library tip.
+   */
+  manage?: boolean;
+}
+
+export function modelPanel(svc: OfflineModelService, opts: ModelPanelOptions = {}): ModelPanel {
+  const manage = opts.manage ?? true;
   const info = svc.info;
+  const size = info ? formatMB(info.downloadBytes) : '';
   const status = h('p', { className: 'model-status' });
   status.setAttribute('aria-live', 'polite');
   const bar = h('progress', { className: 'model-progress', max: 1, value: 0, hidden: true });
   const usage = h('p', { className: 'field-hint model-usage', hidden: true });
-  const download = button('Download model', () => void svc.download(), 'primary');
+  const download = button(
+    manage || !size ? 'Download model' : `Download (${size})`,
+    () => void svc.download(),
+    'primary',
+  );
   const cancel = button('Cancel download', () => svc.cancel());
   let armed: ReturnType<typeof setTimeout> | null = null;
   const disarm = () => {
@@ -43,7 +57,6 @@ export function modelPanel(svc: OfflineModelService): ModelPanel {
     },
     'danger',
   );
-  const size = info ? formatMB(info.downloadBytes) : '';
 
   function showUsage(): void {
     void svc.usage().then((bytes) => {
@@ -55,10 +68,11 @@ export function modelPanel(svc: OfflineModelService): ModelPanel {
   }
 
   function render(s: OfflineModelState): void {
+    status.hidden = false;
     bar.hidden = s.kind !== 'downloading' && s.kind !== 'installing';
     download.hidden = !(s.kind === 'absent' || s.kind === 'error');
     cancel.hidden = s.kind !== 'downloading';
-    del.hidden = s.kind !== 'ready';
+    del.hidden = !manage || s.kind !== 'ready';
     if (s.kind !== 'ready') disarm();
     switch (s.kind) {
       case 'checking':
@@ -69,7 +83,8 @@ export function modelPanel(svc: OfflineModelService): ModelPanel {
           'On-device recognition needs on-device storage, which this browser isn’t allowing (private mode?).';
         break;
       case 'absent':
-        status.textContent = `Not downloaded. One-time download of about ${size}.`;
+        status.textContent = manage ? `Not downloaded. One-time download of about ${size}.` : '';
+        status.hidden = !manage;
         break;
       case 'downloading':
         status.textContent = `Downloading… ${formatMB(s.loaded)} of ${formatMB(s.total)} (${Math.floor((100 * s.loaded) / s.total)}%)`;
@@ -82,7 +97,7 @@ export function modelPanel(svc: OfflineModelService): ModelPanel {
         break;
       case 'ready':
         status.textContent = 'Downloaded. Voice following works offline.';
-        showUsage();
+        if (manage) showUsage();
         break;
       case 'error':
         status.textContent = s.message;
@@ -92,22 +107,25 @@ export function modelPanel(svc: OfflineModelService): ModelPanel {
 
   const off = svc.events.on('change', render);
   render(svc.state);
-  if (svc.state.kind === 'ready') showUsage();
+  if (manage && svc.state.kind === 'ready') showUsage();
 
-  const el = h(
-    'div',
-    { className: 'model-panel' },
-    h('h3', {}, 'On-device speech model'),
-    h(
-      'p',
-      { className: 'field-hint' },
-      'Recognizes speech on this device: faster than the browser service, private (audio never leaves the device) and works without internet. English only.',
-    ),
-    status,
-    bar,
-    h('div', { className: 'model-actions' }, download, cancel, del),
-    usage,
-  );
+  const actions = h('div', { className: 'model-actions' }, download, cancel, del);
+  const el = manage
+    ? h(
+        'div',
+        { className: 'model-panel' },
+        h('h3', {}, 'On-device speech model'),
+        h(
+          'p',
+          { className: 'field-hint' },
+          'Recognizes speech on this device: faster than the browser service, private (audio never leaves the device) and works without internet. English only.',
+        ),
+        status,
+        bar,
+        actions,
+        usage,
+      )
+    : h('div', { className: 'model-panel model-panel-compact' }, status, bar, actions);
   return {
     el,
     destroy() {

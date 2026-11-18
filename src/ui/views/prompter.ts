@@ -39,10 +39,12 @@ import {
   browserEnv,
   detectCapabilities,
   meterEnabled,
+  offlineCapable,
   resolveEngine,
   type EngineResolution,
 } from '../capabilities';
-import { offlineReady } from '../offline';
+import { offlineReady, shouldOfferOffline } from '../offline';
+import { modelPanel } from '../components/modelpanel';
 import {
   jumpMessage,
   linesBetween,
@@ -675,16 +677,22 @@ export function createPrompterView(deps: ViewDeps): View {
         if (say && engine) srStatus.textContent = lastSpoken = say;
       }
 
-      // One-time privacy notice before the first Web Speech start.
-      const privacy = h(
-        'div',
-        { className: 'privacy-notice', hidden: true },
-        h('h2', {}, 'Before you start'),
-        h(
-          'p',
-          {},
-          'Voice following uses your browser’s speech service. In Chrome, your microphone audio is sent to Google to be transcribed, so it needs an internet connection. Cadence itself never sends or stores audio or scripts. To keep audio on this device instead, download the on-device speech model in Settings.',
-        ),
+      // One-time notice before the first Web Speech start. Where the on-device model could
+      // run instead, it doubles as the place people learn about it: otherwise most never open
+      // Settings and only ever meet the laggier browser service. Which body shows is decided
+      // when it opens (the model storage check may still be running at mount).
+      /** The user started the download from the notice: keep it open through the engine swap. */
+      let offerKeepOpen = false;
+      const closePrivacy = () => {
+        privacy.hidden = true;
+        offerKeepOpen = false;
+      };
+      const useBrowser = () => {
+        closePrivacy();
+        deps.settings.update({ engine: { privacyNoticeSeen: true } });
+        void session?.start();
+      };
+      const privacyLink = () =>
         h(
           'p',
           {},
@@ -693,25 +701,111 @@ export function createPrompterView(deps: ViewDeps): View {
             { href: PROMPTER_CONFIG.privacyUrl, target: '_blank', rel: 'noopener' },
             'Privacy details (README)',
           ),
+        );
+      const cancelBtn = () =>
+        button('Cancel', () => {
+          closePrivacy();
+          listenWanted = false;
+        });
+      const plainBody = h(
+        'div',
+        {},
+        h('h2', {}, 'Before you start'),
+        h(
+          'p',
+          {},
+          'Voice following uses your browser’s speech service. In Chrome, your microphone audio is sent to Google to be transcribed, so it needs an internet connection. Cadence itself never sends or stores audio or scripts. To keep audio on this device instead, download the on-device speech model in Settings.',
         ),
+        privacyLink(),
         h(
           'div',
           { className: 'privacy-actions' },
-          button('Cancel', () => {
-            privacy.hidden = true;
-            listenWanted = false;
-          }),
-          button(
-            'Start listening',
-            () => {
-              privacy.hidden = true;
-              deps.settings.update({ engine: { privacyNoticeSeen: true } });
-              void session?.start();
-            },
-            'primary',
-          ),
+          cancelBtn(),
+          button('Start listening', useBrowser, 'primary'),
         ),
       );
+      const privacy = h('div', { className: 'privacy-notice', hidden: true }, plainBody);
+      /** Present when the on-device model could be offered here; null otherwise. */
+      let offerBody: HTMLElement | null = null;
+      let startOffline: HTMLElement | null = null;
+      let browserOption: HTMLElement | null = null;
+      const svc = deps.offline;
+      if (svc && offlineCapable(caps)) {
+        const panel = modelPanel(svc, { manage: false });
+        cleanups.push(() => panel.destroy());
+        // Starting the on-device engine opens the mic, which needs a fresh tap (autoplay rules).
+        const start = button(
+          'Start listening',
+          () => {
+            closePrivacy();
+            startListening();
+          },
+          'primary',
+        );
+        start.hidden = true;
+        startOffline = start;
+        const browser = h(
+          'div',
+          { className: 'engine-option' },
+          h('h3', {}, 'Browser speech service'),
+          h(
+            'p',
+            {},
+            'Starts right away, but follows your voice with more delay. In Chrome, your microphone audio is sent to Google to be transcribed, so it needs an internet connection.',
+          ),
+          h('div', { className: 'privacy-actions' }, button('Use browser speech', useBrowser)),
+        );
+        browserOption = browser;
+        cleanups.push(
+          svc.events.on('change', (st) => {
+            if (privacy.hidden || offerBody?.hidden !== false) return;
+            if (st.kind === 'downloading' || st.kind === 'installing') {
+              offerKeepOpen = true;
+              listenWanted = false; // don't auto-start after the swap; wait for the tap
+            }
+            if (st.kind === 'ready' && offerKeepOpen) {
+              start.hidden = false;
+              browser.hidden = true;
+              start.focus();
+            }
+          }),
+        );
+        offerBody = h(
+          'div',
+          { hidden: true },
+          h('h2', {}, 'How should Cadence listen?'),
+          h(
+            'div',
+            { className: 'engine-option engine-option-recommended' },
+            h('h3', {}, 'On-device (recommended)'),
+            h(
+              'p',
+              {},
+              'Follows your voice faster, keeps audio on this device, and works without internet. English only. A one-time download, then it’s ready every time.',
+            ),
+            panel.el,
+            start,
+          ),
+          browser,
+          h(
+            'p',
+            { className: 'field-hint' },
+            'Cadence itself never sends or stores audio or scripts. You can switch any time in Settings → Speech engine.',
+          ),
+          privacyLink(),
+          h('div', { className: 'privacy-actions' }, cancelBtn()),
+        );
+        privacy.append(offerBody);
+      }
+      function showPrivacy(): void {
+        const offer =
+          !!offerBody && shouldOfferOffline(deps.settings, deps.offline, offlineCapable(caps));
+        plainBody.hidden = offer;
+        if (offerBody) offerBody.hidden = !offer;
+        if (startOffline) startOffline.hidden = true;
+        if (browserOption) browserOption.hidden = false;
+        privacy.hidden = false;
+      }
       privacy.setAttribute('role', 'dialog');
       privacy.setAttribute('aria-modal', 'true');
       privacy.addEventListener('pointerdown', (e) => e.stopPropagation());
@@ -738,7 +832,7 @@ export function createPrompterView(deps: ViewDeps): View {
         if (!session) return;
         session.resync();
         if (engine?.id === 'webspeech' && !deps.settings.get().engine.privacyNoticeSeen) {
-          privacy.hidden = false;
+          showPrivacy();
           return;
         }
         void session.start(); // inside the click/key: Web Speech needs a user gesture
@@ -788,7 +882,7 @@ export function createPrompterView(deps: ViewDeps): View {
         simPanel?.destroy();
         simPanel = null;
         engineStatus = { status: 'idle' };
-        privacy.hidden = true;
+        if (!offerKeepOpen) privacy.hidden = true;
       }
 
       attachVoice();

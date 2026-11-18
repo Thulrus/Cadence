@@ -3,6 +3,7 @@ import { missingSamples } from '../../samples';
 import type { ScriptRecord } from '../../storage/scripts';
 import { button, h } from '../components/dom';
 import { navBar } from '../components/nav';
+import { offlineTip } from '../components/offlinetip';
 import { BACKUP_ACCEPT, SCRIPT_ACCEPT, onFileDrop, pickFiles } from '../files';
 import type { View } from '../router';
 import { attempt, exportLibraryJson, exportScriptTxt, importFiles, type ViewDeps } from './deps';
@@ -170,12 +171,15 @@ export function createLibraryView(deps: ViewDeps): View {
         }),
         button('Add sample scripts', () => void addSamples()),
       );
+      const tip = deps.offline ? offlineTip(deps.offline, deps.settings) : null;
+      if (tip) cleanups.push(() => tip.destroy());
       root = h(
         'section',
         { className: 'view view-library' },
         navBar(),
         h('h1', {}, 'Library'),
         toolbar,
+        ...(tip ? [tip.el] : []),
         list,
       );
       cleanups.push(

@@ -6,7 +6,13 @@ import {
   type ModelStore,
 } from '../engines/offline/model';
 import { memoryStorage, SettingsStore } from '../storage/settings';
-import { formatMB, OfflineModelService, offlineReady, type OfflineModelState } from './offline';
+import {
+  formatMB,
+  OfflineModelService,
+  offlineReady,
+  shouldOfferOffline,
+  type OfflineModelState,
+} from './offline';
 
 function fakeStore(o: { installed?: boolean; fail?: unknown } = {}) {
   let installed = o.installed ?? false;
@@ -104,5 +110,36 @@ describe('formatMB', () => {
   it('one decimal under 10 MB', () => {
     expect(formatMB(2_345_678)).toBe('2.3 MB');
     expect(formatMB(29_300_000)).toBe('29 MB');
+  });
+});
+
+describe('shouldOfferOffline', () => {
+  it('offers when capable, not installed, auto engine, English', async () => {
+    const s = settings();
+    const svc = new OfflineModelService(fakeStore().store, s);
+    await svc.refresh();
+    expect(shouldOfferOffline(s, svc, true)).toBe(true);
+    expect(shouldOfferOffline(s, svc, false)).toBe(false);
+    expect(shouldOfferOffline(s, undefined, true)).toBe(false);
+  });
+
+  it('respects an explicit browser choice and non-English languages', async () => {
+    const s = settings();
+    const svc = new OfflineModelService(fakeStore().store, s);
+    await svc.refresh();
+    s.update({ engine: { choice: 'webspeech' } });
+    expect(shouldOfferOffline(s, svc, true)).toBe(false);
+    s.update({ engine: { choice: 'offline', lang: 'de-DE' } });
+    expect(shouldOfferOffline(s, svc, true)).toBe(false);
+    s.update({ engine: { lang: 'en-GB' } });
+    expect(shouldOfferOffline(s, svc, true)).toBe(true);
+  });
+
+  it('stops offering once installed, or without storage', async () => {
+    const s = settings();
+    const svc = new OfflineModelService(fakeStore({ installed: true }).store, s);
+    await svc.refresh();
+    expect(shouldOfferOffline(s, svc, true)).toBe(false);
+    expect(shouldOfferOffline(s, new OfflineModelService(null, s), true)).toBe(false);
   });
 });

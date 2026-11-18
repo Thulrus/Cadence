@@ -137,3 +137,21 @@ export function formatMB(bytes: number): string {
   const MB = 1e6;
   return `${(bytes / MB).toFixed(bytes < 10 * MB ? 1 : 0)} MB`;
 }
+
+/**
+ * Whether to promote the on-device model: it can run here, isn't installed, the user hasn't
+ * explicitly chosen the browser service, and the language is one the model handles (English).
+ * People who never open Settings otherwise only ever meet the laggier browser service.
+ */
+export function shouldOfferOffline(
+  settings: SettingsStore,
+  svc: OfflineModelService | undefined,
+  capable: boolean,
+): boolean {
+  if (!svc || !capable || offlineReady(settings, svc)) return false;
+  // Only once storage has been checked: 'checking' has nothing to act on yet.
+  const st = svc.state.kind;
+  if (st === 'checking' || st === 'unavailable' || st === 'ready') return false;
+  const { choice, lang } = settings.get().engine;
+  return choice !== 'webspeech' && /^en\b/i.test(lang);
+}
